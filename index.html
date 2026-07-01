@@ -4,6 +4,12 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>塾出席管理</title>
+  <link rel="manifest" href="/manifest.json">
+  <link rel="apple-touch-icon" href="/icon.svg">
+  <meta name="theme-color" content="#4361ee">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="出席管理">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -442,6 +448,282 @@
     }
     input[type="time"]:focus { outline: none; border-color: var(--primary); }
 
+    /* ── フォローリスト ── */
+    .follow-card-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+    .follow-badge {
+      background: var(--absent);
+      color: #fff;
+      font-size: .75rem;
+      font-weight: 800;
+      padding: 2px 8px;
+      border-radius: 20px;
+    }
+    .follow-badge.ok {
+      background: var(--present);
+    }
+    .follow-item {
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .follow-item:last-child { border-bottom: none; }
+    .follow-name-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 6px;
+      flex-wrap: wrap;
+    }
+    .follow-name { font-weight: 800; font-size: .95rem; }
+    .follow-tag {
+      font-size: .72rem;
+      font-weight: 800;
+      padding: 2px 7px;
+      border-radius: 10px;
+    }
+    .follow-tag.consec { background: #fee2e2; color: var(--absent); }
+    .follow-tag.rate   { background: #fef3c7; color: #92400e; }
+    .follow-stats {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .follow-dots {
+      display: flex;
+      gap: 4px;
+      align-items: center;
+    }
+    .dot {
+      width: 11px;
+      height: 11px;
+      border-radius: 50%;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+    .dot-present { background: var(--present); }
+    .dot-absent  { background: var(--absent); }
+    .dot-late    { background: var(--late); }
+    .dot-early   { background: var(--early); }
+    .dot-none    { background: var(--border); }
+    .follow-rate-text {
+      font-size: .78rem;
+      color: var(--muted);
+      font-weight: 700;
+    }
+    .follow-all-ok {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 0;
+      color: var(--present);
+      font-weight: 800;
+      font-size: .9rem;
+    }
+
+    /* ── 振替リスト ── */
+    .btn-makeup {
+      padding: 3px 9px;
+      font-size: .72rem;
+      font-weight: 800;
+      background: #eff6ff;
+      border: 1px solid #93c5fd;
+      border-radius: 6px;
+      cursor: pointer;
+      color: #1d4ed8;
+      font-family: inherit;
+    }
+    .btn-makeup:hover { background: #dbeafe; }
+    .att-meta-makeup {
+      font-size: .78rem;
+      font-weight: 800;
+      color: #1d4ed8;
+      background: #eff6ff;
+      padding: 1px 7px;
+      border-radius: 10px;
+    }
+    .makeup-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .makeup-item:last-child { border-bottom: none; }
+    .makeup-item.today-hit {
+      background: #ecfdf5;
+      margin: 0 -20px;
+      padding: 12px 20px;
+      border-radius: 0;
+      border-left: 4px solid var(--present);
+    }
+    .makeup-info { flex: 1; min-width: 0; }
+    .makeup-name { font-weight: 800; font-size: .95rem; }
+    .makeup-dates {
+      font-size: .8rem;
+      color: var(--muted);
+      margin-top: 3px;
+    }
+    .makeup-memo {
+      font-size: .78rem;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+    .makeup-today-label {
+      font-size: .72rem;
+      font-weight: 800;
+      background: var(--present);
+      color: #fff;
+      padding: 1px 7px;
+      border-radius: 10px;
+      margin-left: 6px;
+    }
+    .makeup-actions { display: flex; gap: 6px; flex-shrink: 0; align-items: center; }
+    .makeup-done-tag {
+      font-size: .72rem;
+      font-weight: 800;
+      color: var(--present);
+      background: #d1fae5;
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+
+    /* ── 検索・絞り込み ── */
+    .search-bar {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .search-input-wrap {
+      flex: 1;
+      position: relative;
+    }
+    .search-input-wrap input {
+      padding-left: 38px;
+      margin: 0;
+    }
+    .search-icon {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: .95rem;
+      pointer-events: none;
+      z-index: 1;
+    }
+    .filter-days-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .filter-day-btn {
+      width: 38px;
+      height: 38px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      background: #fff;
+      font-weight: 800;
+      font-size: .85rem;
+      cursor: pointer;
+      color: var(--muted);
+      font-family: inherit;
+      transition: all .15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .filter-day-btn.active {
+      background: var(--primary);
+      border-color: var(--primary);
+      color: #fff;
+    }
+    .search-count {
+      font-size: .8rem;
+      color: var(--muted);
+      font-weight: 700;
+      margin-bottom: 8px;
+      min-height: 1.2em;
+    }
+    .search-count span { color: var(--primary); }
+
+    /* ── 保護者連絡文 ── */
+    .contact-item {
+      margin-bottom: 14px;
+      border: 1.5px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .contact-item-header {
+      background: #f6f8fb;
+      padding: 9px 14px;
+      font-weight: 800;
+      font-size: .9rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      border-bottom: 1px solid var(--border);
+    }
+    .contact-textarea {
+      width: 100%;
+      padding: 12px 14px;
+      border: none;
+      border-top: 1.5px solid var(--border);
+      font-size: .9rem;
+      font-family: inherit;
+      line-height: 1.7;
+      resize: vertical;
+      min-height: 90px;
+      color: var(--text);
+      background: #fffef7;
+      display: block;
+      cursor: text;
+      transition: background .15s, border-color .15s;
+    }
+    .contact-textarea:focus {
+      outline: none;
+      background: #fff;
+      border-top-color: var(--primary);
+    }
+    .contact-edit-hint {
+      font-size: .72rem;
+      color: var(--muted);
+      padding: 4px 14px 6px;
+      background: #fffef7;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      border-top: 1px dashed var(--border);
+    }
+    .contact-copy-row {
+      padding: 8px 12px;
+      border-top: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      background: #fafbff;
+    }
+    .copy-ok {
+      font-size: .78rem;
+      color: var(--present);
+      font-weight: 700;
+      opacity: 0;
+      transition: opacity .3s;
+    }
+    .copy-ok.show { opacity: 1; }
+    .btn-ghost-white {
+      background: rgba(255,255,255,.18);
+      color: #fff;
+      border: 1.5px solid rgba(255,255,255,.45);
+    }
+    .btn-ghost-white:hover { background: rgba(255,255,255,.28); }
+
     /* ── バックアップバー ── */
     .backup-bar {
       background: #fffbeb;
@@ -476,6 +758,123 @@
     .btn-backup  { background: #d97706; color: #fff; }
     .btn-restore { background: #0284c7; color: #fff; }
 
+    /* ── 印刷エリア ── */
+    #print-area { display: none; }
+
+    @media print {
+      body > *:not(#print-area) { display: none !important; }
+      #print-area {
+        display: block !important;
+        font-family: 'Hiragino Sans', 'Yu Gothic', sans-serif;
+        color: #000;
+        padding: 16px;
+      }
+      .p-title {
+        font-size: 16pt;
+        font-weight: bold;
+        margin-bottom: 4px;
+      }
+      .p-sub {
+        font-size: 10pt;
+        color: #555;
+        margin-bottom: 16px;
+      }
+      .p-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 10.5pt;
+        margin-bottom: 20px;
+      }
+      .p-table th {
+        background: #e8e8e8;
+        border: 1px solid #555;
+        padding: 6px 8px;
+        text-align: center;
+        font-weight: bold;
+      }
+      .p-table td {
+        border: 1px solid #555;
+        padding: 6px 8px;
+      }
+      .p-table td.center { text-align: center; }
+      .p-mark { font-size: 13pt; }
+      .p-footer {
+        font-size: 9pt;
+        color: #666;
+        margin-top: 12px;
+        border-top: 1px solid #ccc;
+        padding-top: 6px;
+      }
+      .p-section { margin-bottom: 24px; }
+    }
+
+    /* ── ロック画面 ── */
+    #lock-screen {
+      position: fixed;
+      inset: 0;
+      background: linear-gradient(160deg, #3a56e8 0%, #6a82fb 100%);
+      z-index: 900;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    #lock-screen.hidden { display: none; }
+    .lock-card {
+      background: #fff;
+      border-radius: 22px;
+      padding: 32px 28px 24px;
+      width: 100%;
+      max-width: 320px;
+      text-align: center;
+      box-shadow: 0 24px 60px rgba(0,0,0,.35);
+    }
+    .lock-icon  { font-size: 2.8rem; margin-bottom: 8px; }
+    .lock-title { font-size: 1.2rem; font-weight: 800; margin-bottom: 4px; }
+    .lock-sub   { font-size: .82rem; color: var(--muted); margin-bottom: 22px; }
+    .pin-dots {
+      display: flex;
+      justify-content: center;
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+    .pin-dot {
+      width: 15px; height: 15px;
+      border-radius: 50%;
+      border: 2px solid var(--border);
+      transition: all .12s;
+    }
+    .pin-dot.filled { background: var(--primary); border-color: var(--primary); transform: scale(1.15); }
+    .pin-pad {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+    .pin-btn {
+      padding: 17px 10px;
+      border: 1.5px solid var(--border);
+      border-radius: 12px;
+      background: #fff;
+      font-size: 1.35rem;
+      font-weight: 800;
+      cursor: pointer;
+      font-family: inherit;
+      color: var(--text);
+      transition: all .1s;
+    }
+    .pin-btn:active  { background: var(--primary); color: #fff; border-color: var(--primary); transform: scale(.93); }
+    .pin-btn.del-btn { font-size: 1.1rem; color: var(--muted); }
+    .pin-error { color: var(--absent); font-size: .82rem; font-weight: 700; min-height: 1.1em; }
+    @keyframes shake {
+      0%,100%{ transform:translateX(0) }
+      20%    { transform:translateX(-8px) }
+      40%    { transform:translateX( 8px) }
+      60%    { transform:translateX(-6px) }
+      80%    { transform:translateX( 6px) }
+    }
+    .shake { animation: shake .4s ease; }
+
     /* ── レスポンシブ ── */
     @media (max-width: 560px) {
       .header h1 { font-size: 1.05rem; }
@@ -489,6 +888,7 @@
 <header class="header">
   <span style="font-size:1.5rem">📚</span>
   <h1>塾出席管理</h1>
+  <button onclick="openSettings()" style="margin-left:auto;background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.35);color:#fff;border-radius:8px;padding:7px 12px;font-size:.85rem;font-weight:700;cursor:pointer;font-family:inherit;">⚙️ 設定</button>
 </header>
 
 <!-- ── バックアップバー ── -->
@@ -525,10 +925,31 @@
         </div>
         <div class="today-counter-text" id="today-counter-text">0 / 0 名</div>
       </div>
+      <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-ghost-white btn-sm" onclick="openContactModal(todayStr())">
+          📨 連絡文を作成
+        </button>
+        <button class="btn btn-ghost-white btn-sm" onclick="printToday()">
+          🖨️ 出席表を印刷
+        </button>
+      </div>
     </div>
 
     <div class="card" id="today-card">
       <div id="today-list"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📅 振替リスト</div>
+      <div id="makeup-list"></div>
+    </div>
+
+    <div class="card" id="follow-card">
+      <div class="follow-card-header">
+        <div class="card-title" style="margin-bottom:0">⚠️ フォローリスト</div>
+        <span class="follow-badge" id="follow-badge">0名</span>
+      </div>
+      <div id="follow-list"></div>
     </div>
 
   </div>
@@ -550,7 +971,19 @@
     </div>
 
     <div class="card">
-      <div class="card-title">👥 登録済み生徒</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <div class="card-title" style="margin-bottom:0">👥 登録済み生徒</div>
+        <button class="btn btn-outline btn-sm" onclick="printStudentList()">🖨️ 名簿を印刷</button>
+      </div>
+      <div class="search-bar">
+        <div class="search-input-wrap">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="search-input" placeholder="名前で検索..." oninput="filterStudents()" />
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="clearSearch()">クリア</button>
+      </div>
+      <div class="filter-days-row" id="filter-days-row"></div>
+      <div class="search-count" id="search-count"></div>
       <div id="student-list"></div>
     </div>
 
@@ -568,13 +1001,32 @@
         <div class="day-chip" id="att-day">---</div>
       </div>
       <div id="att-list"></div>
+      <div style="margin-top:12px;">
+        <button class="btn btn-outline btn-full" onclick="openContactModal(document.getElementById('att-date').value)">
+          📨 この日の保護者連絡文を作成
+        </button>
+      </div>
     </div>
   </div>
 
   <!-- ── 集計レポート ── -->
   <div id="tab-report" class="tab-panel">
+
     <div class="card">
-      <div class="card-title">🔍 絞り込み</div>
+      <div class="card-title">📅 月次コマ数集計</div>
+      <div class="filter-row" style="margin-bottom:14px;">
+        <div class="form-group" style="margin-bottom:0;flex:1;min-width:160px;">
+          <label>対象月</label>
+          <input type="month" id="monthly-month" onchange="renderMonthly()" style="padding:11px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:1rem;font-family:inherit;width:100%;background:#fff;color:var(--text);" />
+        </div>
+        <button class="btn btn-outline btn-sm" style="align-self:flex-end;" onclick="exportMonthlyCSV()">📥 月次CSV</button>
+        <button class="btn btn-outline btn-sm" style="align-self:flex-end;" onclick="printMonthly()">🖨️ 印刷</button>
+      </div>
+      <div class="table-wrap"><div id="monthly-table"></div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🔍 期間別出席率</div>
       <div class="filter-row">
         <div class="form-group">
           <label>開始日</label>
@@ -592,6 +1044,7 @@
       <button class="btn btn-success btn-full" onclick="exportCSV()" style="margin-bottom:16px;">📥 CSVダウンロード</button>
       <div class="table-wrap"><div id="report-table"></div></div>
     </div>
+
   </div>
 
 </div><!-- /content -->
@@ -612,6 +1065,82 @@
     <div class="modal-foot">
       <button class="btn btn-outline" onclick="closeModal()">キャンセル</button>
       <button class="btn btn-primary" onclick="saveEdit()">保存する</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 保護者連絡文モーダル ── -->
+<div class="overlay" id="contact-modal">
+  <div class="modal" style="max-width:520px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+      <div class="card-title" style="margin-bottom:0">📨 保護者連絡文</div>
+      <button class="btn btn-outline btn-sm" onclick="openTemplateModal()">✏️ テンプレート編集</button>
+    </div>
+    <div style="font-size:.85rem;color:var(--muted);margin-bottom:16px;" id="contact-date-label"></div>
+    <div id="contact-messages"></div>
+    <div class="modal-foot">
+      <button class="btn btn-outline" onclick="closeContactModal()">閉じる</button>
+      <button class="btn btn-primary" id="contact-copy-all" onclick="copyAllMessages()">📋 全員分をコピー</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── テンプレート編集モーダル ── -->
+<div class="overlay" id="template-modal">
+  <div class="modal" style="max-width:500px">
+    <div class="card-title">✏️ 連絡文テンプレートを編集</div>
+    <p style="font-size:.82rem;color:var(--muted);margin-bottom:6px;line-height:1.6;">
+      使えるプレースホルダー：
+      <code style="background:#f0f4f8;padding:1px 5px;border-radius:4px">{名前}</code>
+      <code style="background:#f0f4f8;padding:1px 5px;border-radius:4px">{日付}</code>
+      <code style="background:#f0f4f8;padding:1px 5px;border-radius:4px">{時刻}</code>
+      <code style="background:#f0f4f8;padding:1px 5px;border-radius:4px">{メモ}</code>
+    </p>
+    <p style="font-size:.78rem;color:var(--muted);margin-bottom:16px;">
+      ※ {時刻}・{メモ}は記録がない場合は空白になります
+    </p>
+    <div class="form-group">
+      <label style="color:var(--absent)">欠席テンプレート</label>
+      <textarea class="contact-textarea" id="tpl-absent" style="border:1.5px solid var(--border);border-radius:8px;min-height:80px;background:#fff;"></textarea>
+    </div>
+    <div class="form-group">
+      <label style="color:var(--late)">遅刻テンプレート</label>
+      <textarea class="contact-textarea" id="tpl-late" style="border:1.5px solid var(--border);border-radius:8px;min-height:80px;background:#fff;"></textarea>
+    </div>
+    <div class="form-group">
+      <label style="color:var(--early)">早退テンプレート</label>
+      <textarea class="contact-textarea" id="tpl-early" style="border:1.5px solid var(--border);border-radius:8px;min-height:80px;background:#fff;"></textarea>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline btn-sm" onclick="resetTemplates()">デフォルトに戻す</button>
+      <button class="btn btn-outline" onclick="closeTemplateModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveTemplates()">保存する</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── 振替登録モーダル ── -->
+<div class="overlay" id="makeup-modal">
+  <div class="modal" style="max-width:380px">
+    <div class="card-title">📅 振替授業を登録</div>
+    <div style="font-size:.85rem;color:var(--muted);margin-bottom:4px;">欠席日</div>
+    <div style="font-weight:800;font-size:1rem;margin-bottom:4px;" id="mk-original-date-disp">---</div>
+    <div style="font-weight:800;font-size:1rem;color:var(--primary);margin-bottom:16px;" id="mk-student-name-disp"></div>
+    <input type="hidden" id="mk-student-id">
+    <input type="hidden" id="mk-original-date">
+    <input type="hidden" id="mk-context">
+    <input type="hidden" id="mk-id">
+    <div class="form-group">
+      <label>振替日</label>
+      <input type="date" id="mk-date" />
+    </div>
+    <div class="form-group">
+      <label>メモ（任意）</label>
+      <input type="text" id="mk-memo" placeholder="例：土曜クラスに振替" maxlength="50" />
+    </div>
+    <div class="modal-foot" id="mk-foot">
+      <button class="btn btn-outline" onclick="closeMakeupModal()">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveMakeup()">登録する</button>
     </div>
   </div>
 </div>
@@ -657,7 +1186,70 @@
   </div>
 </div>
 
+<!-- ── ロック画面 ── -->
+<div id="lock-screen" class="hidden">
+  <div class="lock-card">
+    <div class="lock-icon">📚</div>
+    <div class="lock-title">塾出席管理</div>
+    <div class="lock-sub">PINを入力してください</div>
+    <div class="pin-dots" id="lock-dots">
+      <div class="pin-dot" id="ld0"></div>
+      <div class="pin-dot" id="ld1"></div>
+      <div class="pin-dot" id="ld2"></div>
+      <div class="pin-dot" id="ld3"></div>
+    </div>
+    <div class="pin-pad" id="lock-pad"></div>
+    <div class="pin-error" id="lock-pin-error"></div>
+  </div>
+</div>
+
+<!-- ── 設定モーダル ── -->
+<div class="overlay" id="settings-modal">
+  <div class="modal" style="max-width:380px">
+    <div class="card-title">⚙️ 設定</div>
+
+    <div style="margin-bottom:20px">
+      <div style="font-size:.8rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">🔒 PINロック</div>
+      <div id="pin-status" style="font-size:.88rem;color:var(--muted);margin-bottom:12px;"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;" id="pin-setting-btns"></div>
+    </div>
+
+    <div style="margin-bottom:8px">
+      <div style="font-size:.8rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">📱 ホーム画面に追加</div>
+      <div id="pwa-install-area">
+        <p style="font-size:.85rem;color:var(--muted);line-height:1.6;">
+          iOSの場合: Safariで開き、共有ボタン →「ホーム画面に追加」<br>
+          Androidの場合: Chromeのメニュー →「ホーム画面に追加」
+        </p>
+        <button class="btn btn-primary btn-full" id="pwa-install-btn" style="display:none;margin-top:8px;" onclick="installPWA()">📲 ホーム画面に追加</button>
+      </div>
+    </div>
+
+    <div class="modal-foot">
+      <button class="btn btn-outline" onclick="closeSettings()">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── PIN設定モーダル ── -->
+<div class="overlay" id="pin-setup-modal">
+  <div class="modal" style="max-width:320px;text-align:center;padding-bottom:20px;">
+    <div class="card-title" id="ps-title" style="justify-content:center;">PINを設定する</div>
+    <div style="font-size:.82rem;color:var(--muted);margin-bottom:18px;" id="ps-sub">4桁のPINを入力してください</div>
+    <div class="pin-dots" id="setup-dots">
+      <div class="pin-dot" id="sd0"></div>
+      <div class="pin-dot" id="sd1"></div>
+      <div class="pin-dot" id="sd2"></div>
+      <div class="pin-dot" id="sd3"></div>
+    </div>
+    <div class="pin-pad" id="setup-pad"></div>
+    <div class="pin-error" id="ps-error" style="margin-top:8px;"></div>
+    <button class="btn btn-outline btn-full" onclick="closePinSetup()" style="margin-top:14px;">キャンセル</button>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
+<div id="print-area"></div>
 
 <script>
 // ════════════════════════════
@@ -724,10 +1316,12 @@ function updateBackupInfo() {
 
 function backupData() {
   const data = {
-    version: 1,
+    version: 3,
     exportedAt: new Date().toISOString(),
     students:   getStudents(),
-    attendance: getAttendance()
+    attendance: getAttendance(),
+    makeups:    getMakeups(),
+    templates:  getTemplates()
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url  = URL.createObjectURL(blob);
@@ -783,6 +1377,8 @@ function confirmRestore() {
   if (!data) return;
   saveStudents(data.students);
   saveAttendance(data.attendance);
+  if (Array.isArray(data.makeups)) saveMakeups(data.makeups);
+  if (data.templates) saveTemplatesData(data.templates);
   closeRestoreModal();
   renderStudents();
   renderAtt();
@@ -801,7 +1397,337 @@ function switchTab(btn, name) {
   btn.classList.add('active');
   if (name === 'today')      renderToday();
   if (name === 'attendance') renderAtt();
-  if (name === 'report')     renderReport();
+  if (name === 'report')     { renderMonthly(); renderReport(); }
+}
+
+// ════════════════════════════
+//  保護者連絡文
+// ════════════════════════════
+const TK = 'juku_templates';
+
+const DEFAULT_TEMPLATES = {
+  '欠席': '{日付}の授業について、{名前}さんが欠席でした。\nご確認をよろしくお願いいたします。',
+  '遅刻': '{日付}の授業について、{名前}さんが{時刻}遅刻されました。\nご確認をよろしくお願いいたします。',
+  '早退': '{日付}の授業について、{名前}さんが{時刻}早退されました。\nご確認をよろしくお願いいたします。',
+};
+
+function getTemplates() {
+  const saved = JSON.parse(localStorage.getItem(TK) || '{}');
+  return { ...DEFAULT_TEMPLATES, ...saved };
+}
+function saveTemplatesData(obj) { localStorage.setItem(TK, JSON.stringify(obj)); }
+
+function generateContactMsg(name, date, status, time, memo) {
+  const tpl  = getTemplates()[status] || DEFAULT_TEMPLATES[status] || '';
+  const timeStr = time ? `${time}に` : '';
+  return tpl
+    .replace(/\{名前\}/g, name)
+    .replace(/\{日付\}/g, formatDateJP(date))
+    .replace(/\{時刻\}/g, timeStr)
+    .replace(/\{メモ\}/g, memo ? `\n備考：${memo}` : '');
+}
+
+// ── テンプレートモーダル ──
+function openTemplateModal() {
+  const tpl = getTemplates();
+  document.getElementById('tpl-absent').value = tpl['欠席'];
+  document.getElementById('tpl-late').value   = tpl['遅刻'];
+  document.getElementById('tpl-early').value  = tpl['早退'];
+  document.getElementById('template-modal').classList.add('open');
+}
+
+function closeTemplateModal() {
+  document.getElementById('template-modal').classList.remove('open');
+}
+
+function saveTemplates() {
+  saveTemplatesData({
+    '欠席': document.getElementById('tpl-absent').value,
+    '遅刻': document.getElementById('tpl-late').value,
+    '早退': document.getElementById('tpl-early').value,
+  });
+  closeTemplateModal();
+  toast('テンプレートを保存しました');
+}
+
+function resetTemplates() {
+  if (!confirm('テンプレートをデフォルトに戻しますか？')) return;
+  localStorage.removeItem(TK);
+  openTemplateModal();
+  toast('デフォルトに戻しました');
+}
+
+function openContactModal(date) {
+  if (!date) { toast('日付を選択してください'); return; }
+  const targets = getAttendance().filter(a => a.date === date && a.status !== '出席');
+  const sMap    = Object.fromEntries(getStudents().map(s => [s.id, s.name]));
+
+  document.getElementById('contact-date-label').textContent =
+    formatDateJP(date) + ' の連絡対象';
+
+  const el = document.getElementById('contact-messages');
+  const copyAllBtn = document.getElementById('contact-copy-all');
+
+  if (!targets.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">✅</div><p>連絡が必要な生徒はいません<br><small style="color:var(--muted)">（欠席・遅刻・早退の生徒がいません）</small></p></div>`;
+    copyAllBtn.style.display = 'none';
+    document.getElementById('contact-modal').classList.add('open');
+    return;
+  }
+  copyAllBtn.style.display = '';
+
+  const STATUS_COLOR = { '欠席':'consec', '遅刻':'rate', '早退':'rate' };
+  el.innerHTML = targets.map((rec, i) => {
+    const name = sMap[rec.studentId] || '（削除済み）';
+    const msg  = generateContactMsg(name, date, rec.status, rec.time, rec.memo);
+    return `
+      <div class="contact-item">
+        <div class="contact-item-header">
+          ${esc(name)}
+          <span class="follow-tag ${STATUS_COLOR[rec.status]||'rate'}">${rec.status}</span>
+        </div>
+        <textarea class="contact-textarea" id="cmsg-${i}">${msg}</textarea>
+        <div class="contact-edit-hint">✏️ タップして文面を編集できます</div>
+        <div class="contact-copy-row">
+          <span class="copy-ok" id="cok-${i}">✅ コピーしました</span>
+          <button class="btn btn-outline btn-sm" onclick="copyOneMessage(${i})">📋 コピー</button>
+        </div>
+      </div>`;
+  }).join('');
+
+  document.getElementById('contact-modal').classList.add('open');
+}
+
+function copyOneMessage(i) {
+  const el   = document.getElementById(`cmsg-${i}`);
+  const fb   = document.getElementById(`cok-${i}`);
+  const show = () => { fb.classList.add('show'); setTimeout(() => fb.classList.remove('show'), 1800); };
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(el.value).then(show).catch(() => { el.select(); document.execCommand('copy'); show(); });
+  } else {
+    el.select(); document.execCommand('copy'); show();
+  }
+}
+
+function copyAllMessages() {
+  const tas = document.querySelectorAll('.contact-textarea');
+  if (!tas.length) return;
+  const sep = '\n\n──────────────────────\n\n';
+  const all = Array.from(tas).map(t => t.value).join(sep);
+  navigator.clipboard?.writeText(all)
+    .then(() => toast('📋 全員分をコピーしました'))
+    .catch(() => toast('コピーに失敗しました。個別にコピーしてください'));
+}
+
+function closeContactModal() {
+  document.getElementById('contact-modal').classList.remove('open');
+}
+
+// ════════════════════════════
+//  振替授業
+// ════════════════════════════
+const MK = 'juku_makeups';
+const getMakeups  = () => JSON.parse(localStorage.getItem(MK) || '[]');
+const saveMakeups = v  => localStorage.setItem(MK, JSON.stringify(v));
+
+function formatDateJP(dateStr) {
+  if (!dateStr) return '日程未定';
+  const d = new Date(dateStr + 'T00:00:00');
+  return `${d.getMonth()+1}月${d.getDate()}日（${DAYS[dayIdx(dateStr)]}）`;
+}
+
+function renderMakeupList() {
+  const today   = todayStr();
+  const makeups = getMakeups().filter(m => !m.done);
+  const sMap    = Object.fromEntries(getStudents().map(s => [s.id, s.name]));
+  const el      = document.getElementById('makeup-list');
+
+  if (!makeups.length) {
+    el.innerHTML = `<div class="follow-all-ok"><span style="font-size:1.3rem">✅</span>未完了の振替はありません</div>`;
+    return;
+  }
+
+  // 日付昇順（未設定は末尾）
+  makeups.sort((a, b) => {
+    if (!a.makeupDate && !b.makeupDate) return 0;
+    if (!a.makeupDate) return 1;
+    if (!b.makeupDate) return -1;
+    return a.makeupDate.localeCompare(b.makeupDate);
+  });
+
+  el.innerHTML = makeups.map(m => {
+    const isToday = m.makeupDate === today;
+    const name    = sMap[m.studentId] || '（削除済み）';
+    const todayLabel = isToday ? `<span class="makeup-today-label">本日！</span>` : '';
+    const memoPart   = m.memo ? `<div class="makeup-memo">📝 ${esc(m.memo)}</div>` : '';
+    return `
+      <div class="makeup-item${isToday ? ' today-hit' : ''}">
+        <div class="makeup-info">
+          <div class="makeup-name">${esc(name)}${todayLabel}</div>
+          <div class="makeup-dates">
+            振替日: <strong>${formatDateJP(m.makeupDate)}</strong>
+            ／ 欠席日: ${formatDateJP(m.originalDate)}
+          </div>
+          ${memoPart}
+        </div>
+        <div class="makeup-actions">
+          <button class="btn btn-outline btn-sm" onclick="openMakeupModal('${m.studentId}','${m.originalDate}','today','${m.id}')">編集</button>
+          <button class="btn btn-success btn-sm" onclick="doneMakeup('${m.id}')">完了</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function openMakeupModal(studentId, originalDate, context, existingId) {
+  const student = getStudents().find(s => s.id === studentId);
+  const makeups = getMakeups();
+  const existing = existingId
+    ? makeups.find(m => m.id === existingId)
+    : makeups.find(m => m.studentId === studentId && m.originalDate === originalDate && !m.done);
+
+  document.getElementById('mk-student-id').value    = studentId;
+  document.getElementById('mk-original-date').value = originalDate;
+  document.getElementById('mk-context').value        = context || 'today';
+  document.getElementById('mk-id').value             = existing?.id || '';
+  document.getElementById('mk-original-date-disp').textContent = formatDateJP(originalDate);
+  document.getElementById('mk-student-name-disp').textContent  = student?.name || '';
+  document.getElementById('mk-date').value  = existing?.makeupDate || '';
+  document.getElementById('mk-memo').value  = existing?.memo || '';
+
+  // 既存レコードなら削除ボタンも表示
+  const foot = document.getElementById('mk-foot');
+  const delBtn = existing
+    ? `<button class="btn btn-danger btn-sm" onclick="deleteMakeup('${existing.id}')">削除</button>` : '';
+  foot.innerHTML = `${delBtn}
+    <button class="btn btn-outline" onclick="closeMakeupModal()">キャンセル</button>
+    <button class="btn btn-primary" onclick="saveMakeup()">登録する</button>`;
+
+  document.getElementById('makeup-modal').classList.add('open');
+}
+
+function closeMakeupModal() {
+  document.getElementById('makeup-modal').classList.remove('open');
+}
+
+function saveMakeup() {
+  const studentId    = document.getElementById('mk-student-id').value;
+  const originalDate = document.getElementById('mk-original-date').value;
+  const makeupDate   = document.getElementById('mk-date').value || undefined;
+  const memo         = document.getElementById('mk-memo').value.trim() || undefined;
+  const existingId   = document.getElementById('mk-id').value;
+  const context      = document.getElementById('mk-context').value;
+
+  let makeups = getMakeups();
+  if (existingId) {
+    const idx = makeups.findIndex(m => m.id === existingId);
+    if (idx >= 0) { makeups[idx].makeupDate = makeupDate; makeups[idx].memo = memo; }
+  } else {
+    makeups.push({ id: uid(), studentId, originalDate, makeupDate, memo, done: false });
+  }
+  saveMakeups(makeups);
+  closeMakeupModal();
+  renderMakeupList();
+  _refresh(context);
+  toast('振替を登録しました');
+}
+
+function doneMakeup(id) {
+  const makeups = getMakeups();
+  const idx = makeups.findIndex(m => m.id === id);
+  if (idx >= 0) { makeups[idx].done = true; saveMakeups(makeups); }
+  renderMakeupList();
+  toast('振替完了としました');
+}
+
+function deleteMakeup(id) {
+  saveMakeups(getMakeups().filter(m => m.id !== id));
+  closeMakeupModal();
+  renderMakeupList();
+  toast('振替記録を削除しました');
+}
+
+// ════════════════════════════
+//  フォローリスト
+// ════════════════════════════
+const DOT_CLASS = { '出席':'dot-present','欠席':'dot-absent','遅刻':'dot-late','早退':'dot-early' };
+
+function computeFollowList() {
+  const students = getStudents();
+  const att      = getAttendance();
+  const results  = [];
+
+  for (const s of students) {
+    const recs = att
+      .filter(a => a.studentId === s.id)
+      .sort((a, b) => b.date.localeCompare(a.date));
+
+    if (recs.length < 2) continue;
+
+    // 連続欠席カウント
+    let consecutiveAbsent = 0;
+    for (const r of recs) {
+      if (r.status === '欠席') consecutiveAbsent++;
+      else break;
+    }
+
+    // 直近10回の出席率
+    const recent = recs.slice(0, 10);
+    const presentCnt = recent.filter(r => r.status !== '欠席').length;
+    const rate = Math.round(presentCnt / recent.length * 100);
+
+    const needFollow =
+      consecutiveAbsent >= 3 ||
+      (recent.length >= 3 && rate < 60);
+
+    if (needFollow) {
+      results.push({ s, recs, recent5: recs.slice(0, 5), consecutiveAbsent, rate });
+    }
+  }
+
+  return results;
+}
+
+function renderFollowList() {
+  const list    = computeFollowList();
+  const badgeEl = document.getElementById('follow-badge');
+  const listEl  = document.getElementById('follow-list');
+
+  if (!list.length) {
+    badgeEl.textContent = '0名';
+    badgeEl.className   = 'follow-badge ok';
+    listEl.innerHTML    = `<div class="follow-all-ok"><span style="font-size:1.3rem">✅</span>要フォローの生徒はいません</div>`;
+    return;
+  }
+
+  badgeEl.textContent = `${list.length}名`;
+  badgeEl.className   = 'follow-badge';
+
+  listEl.innerHTML = list.map(({ s, recent5, consecutiveAbsent, rate }) => {
+    const tags = [];
+    if (consecutiveAbsent >= 3)
+      tags.push(`<span class="follow-tag consec">連続欠席 ${consecutiveAbsent}回</span>`);
+    if (rate < 60)
+      tags.push(`<span class="follow-tag rate">出席率 ${rate}%</span>`);
+
+    const dots = recent5.map(r => {
+      const cls = DOT_CLASS[r.status] || 'dot-none';
+      return `<span class="dot ${cls}" title="${r.date} ${r.status}"></span>`;
+    }).join('');
+    const empty = Array(Math.max(0, 5 - recent5.length))
+      .fill('<span class="dot dot-none"></span>').join('');
+
+    return `
+      <div class="follow-item">
+        <div class="follow-name-row">
+          <span class="follow-name">${esc(s.name)}</span>
+          ${tags.join('')}
+        </div>
+        <div class="follow-stats">
+          <div class="follow-dots">${dots}${empty}</div>
+          <span class="follow-rate-text">直近 ${Math.min(5, recent5.length)}回の記録（新しい順）</span>
+        </div>
+      </div>`;
+  }).join('');
 }
 
 // ════════════════════════════
@@ -842,6 +1768,7 @@ function renderToday() {
       </div>
       <hr style="border:none;border-top:1px solid var(--border);margin:0 0 12px;">
       ${buildAttRows(allStudents, att, today)}`;
+    renderFollowList();
     return;
   }
 
@@ -849,6 +1776,8 @@ function renderToday() {
   const unrecorded = allStudents.filter(s => !att.some(a => a.date === today && a.studentId === s.id));
   const done       = allStudents.filter(s =>  att.some(a => a.date === today && a.studentId === s.id));
   listEl.innerHTML = buildAttRows([...unrecorded, ...done], att, today, 'today');
+  renderMakeupList();
+  renderFollowList();
 }
 
 function buildAttRows(students, att, date, context) {
@@ -869,6 +1798,21 @@ function buildAttRows(students, att, date, context) {
         metaHtml = `<div class="att-meta">${timePart}${memoPart}${editBtn}</div>`;
       } else {
         metaHtml = `<div class="att-meta">${editBtn}</div>`;
+      }
+
+      // 振替ボタン（欠席のとき）
+      if (rec.status === '欠席') {
+        const mk = getMakeups().find(m => m.studentId === s.id && m.originalDate === date && !m.done);
+        if (mk) {
+          metaHtml += `<div class="att-meta">
+            <span class="att-meta-makeup">📅 振替: ${formatDateJP(mk.makeupDate)}</span>
+            <button class="btn-memo" onclick="openMakeupModal('${s.id}','${date}','${context||'att'}')">変更</button>
+          </div>`;
+        } else {
+          metaHtml += `<div class="att-meta">
+            <button class="btn-makeup" onclick="openMakeupModal('${s.id}','${date}','${context||'att'}')">📅 振替を登録</button>
+          </div>`;
+        }
       }
     }
 
@@ -998,13 +1942,67 @@ function checkedDays(prefix) {
 // ════════════════════════════
 //  生徒管理
 // ════════════════════════════
+let _searchQ    = '';
+let _filterDays = new Set();
+
+function initSearchFilter() {
+  const row = document.getElementById('filter-days-row');
+  row.innerHTML = DAYS.map((d, i) => `
+    <button class="filter-day-btn" id="fday-${i}" onclick="toggleFilterDay(${i})">${d}</button>
+  `).join('');
+}
+
+function toggleFilterDay(i) {
+  if (_filterDays.has(i)) _filterDays.delete(i);
+  else _filterDays.add(i);
+  document.getElementById(`fday-${i}`).classList.toggle('active', _filterDays.has(i));
+  renderStudents();
+}
+
+function filterStudents() {
+  _searchQ = document.getElementById('search-input').value.trim();
+  renderStudents();
+}
+
+function clearSearch() {
+  _searchQ = '';
+  _filterDays.clear();
+  document.getElementById('search-input').value = '';
+  DAYS.forEach((_, i) => document.getElementById(`fday-${i}`)?.classList.remove('active'));
+  renderStudents();
+}
+
 function renderStudents() {
-  const list = getStudents();
-  const el   = document.getElementById('student-list');
-  if (!list.length) {
+  const all = getStudents();
+  let list  = all;
+
+  if (_searchQ) {
+    list = list.filter(s => s.name.includes(_searchQ));
+  }
+  if (_filterDays.size > 0) {
+    list = list.filter(s => s.days.some(d => _filterDays.has(d)));
+  }
+
+  // 件数表示
+  const countEl = document.getElementById('search-count');
+  if (countEl) {
+    const active = _searchQ || _filterDays.size > 0;
+    countEl.innerHTML = active
+      ? `<span>${list.length}名</span> / ${all.length}名中`
+      : '';
+  }
+
+  const el = document.getElementById('student-list');
+
+  if (!all.length) {
     el.innerHTML = `<div class="empty"><div class="empty-icon">👤</div><p>まだ生徒が登録されていません</p></div>`;
     return;
   }
+  if (!list.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-icon">🔍</div><p>条件に一致する生徒がいません</p></div>`;
+    return;
+  }
+
   el.innerHTML = list.map(s => {
     const badges = s.days.slice().sort((a,b)=>a-b).map(d => {
       const cls = d === 5 ? 'sat' : d === 6 ? 'sun' : '';
@@ -1117,6 +2115,262 @@ document.getElementById('timememo-memo').addEventListener('keydown', e => {
 });
 
 // ════════════════════════════
+//  印刷
+// ════════════════════════════
+function doPrint(html) {
+  document.getElementById('print-area').innerHTML = html;
+  window.print();
+}
+
+function printToday() {
+  const today   = todayStr();
+  const di      = dayIdx(today);
+  const d       = new Date(today + 'T00:00:00');
+  const dateStr = `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${DAYS[di]}曜日）`;
+  const students = getStudents().filter(s => s.days.includes(di));
+  const att      = getAttendance();
+
+  if (!students.length) { toast('今日の登録生徒がいません'); return; }
+
+  const STATUS_MARK = { '出席':'○', '欠席':'×', '遅刻':'△', '早退':'▽' };
+  const rows = students.map((s, i) => {
+    const rec    = att.find(a => a.date === today && a.studentId === s.id);
+    const status = rec?.status || '';
+    const mark   = STATUS_MARK[status] || '';
+    const timeStr = rec?.time  ? rec.time : '';
+    const memo    = rec?.memo  ? rec.memo : '';
+    return `<tr>
+      <td class="center">${i+1}</td>
+      <td>${esc(s.name)}</td>
+      <td class="center p-mark">${status === '出席' ? mark : ''}</td>
+      <td class="center p-mark">${status === '欠席' ? mark : ''}</td>
+      <td class="center p-mark">${status === '遅刻' ? mark : ''}</td>
+      <td class="center p-mark">${status === '早退' ? mark : ''}</td>
+      <td>${timeStr}</td>
+      <td>${esc(memo)}</td>
+    </tr>`;
+  }).join('');
+
+  doPrint(`
+    <div class="p-section">
+      <div class="p-title">出席記録</div>
+      <div class="p-sub">${dateStr}　全${students.length}名</div>
+      <table class="p-table">
+        <thead>
+          <tr>
+            <th style="width:36px">No.</th>
+            <th>生徒名</th>
+            <th style="width:42px">出席</th>
+            <th style="width:42px">欠席</th>
+            <th style="width:42px">遅刻</th>
+            <th style="width:42px">早退</th>
+            <th style="width:56px">時刻</th>
+            <th>メモ</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div class="p-footer">印刷日時: ${new Date().toLocaleString('ja-JP')}</div>
+    </div>`);
+}
+
+function printMonthly() {
+  const month = document.getElementById('monthly-month').value;
+  if (!month) { toast('月を選択してください'); return; }
+
+  const [year, mon] = month.split('-');
+  const lastDay = new Date(+year, +mon, 0).getDate();
+  const start   = `${month}-01`;
+  const end     = `${month}-${String(lastDay).padStart(2,'0')}`;
+  const label   = `${year}年${+mon}月`;
+
+  const students = getStudents();
+  const att      = getAttendance().filter(a => a.date >= start && a.date <= end);
+
+  if (!students.length) { toast('生徒が登録されていません'); return; }
+
+  const rows = students.map((s, i) => {
+    const recs = att.filter(a => a.studentId === s.id);
+    const cnt  = { '出席':0, '遅刻':0, '早退':0, '欠席':0 };
+    recs.forEach(r => { if (r.status in cnt) cnt[r.status]++; });
+    const koma = cnt['出席'] + cnt['遅刻'] + cnt['早退'];
+    return `<tr>
+      <td class="center">${i+1}</td>
+      <td>${esc(s.name)}</td>
+      <td class="center">${cnt['出席']}</td>
+      <td class="center">${cnt['遅刻']}</td>
+      <td class="center">${cnt['早退']}</td>
+      <td class="center">${cnt['欠席']}</td>
+      <td class="center" style="font-weight:bold">${koma}</td>
+    </tr>`;
+  }).join('');
+
+  const total = rows.length;
+  const totKoma = students.reduce((sum, s) => {
+    const recs = att.filter(a => a.studentId === s.id);
+    const cnt = {'出席':0,'遅刻':0,'早退':0};
+    recs.forEach(r => { if (r.status in cnt) cnt[r.status]++; });
+    return sum + cnt['出席'] + cnt['遅刻'] + cnt['早退'];
+  }, 0);
+
+  doPrint(`
+    <div class="p-section">
+      <div class="p-title">月次コマ数集計</div>
+      <div class="p-sub">${label}　全${total}名</div>
+      <table class="p-table">
+        <thead>
+          <tr>
+            <th style="width:36px">No.</th>
+            <th>生徒名</th>
+            <th style="width:48px">出席</th>
+            <th style="width:48px">遅刻</th>
+            <th style="width:48px">早退</th>
+            <th style="width:48px">欠席</th>
+            <th style="width:60px">コマ数</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+        <tfoot>
+          <tr style="background:#eee">
+            <td colspan="2" style="font-weight:bold;text-align:center">合計</td>
+            <td colspan="4"></td>
+            <td class="center" style="font-weight:bold">${totKoma}</td>
+          </tr>
+        </tfoot>
+      </table>
+      <div class="p-footer">コマ数 = 出席＋遅刻＋早退　／　印刷日時: ${new Date().toLocaleString('ja-JP')}</div>
+    </div>`);
+}
+
+function printStudentList() {
+  const students = getStudents();
+  if (!students.length) { toast('生徒が登録されていません'); return; }
+
+  const rows = students.map((s, i) => `
+    <tr>
+      <td class="center">${i+1}</td>
+      <td>${esc(s.name)}</td>
+      <td>${s.days.slice().sort((a,b)=>a-b).map(d=>DAYS[d]+'曜').join('・')}</td>
+    </tr>`).join('');
+
+  doPrint(`
+    <div class="p-section">
+      <div class="p-title">生徒名簿</div>
+      <div class="p-sub">全${students.length}名</div>
+      <table class="p-table">
+        <thead>
+          <tr><th style="width:36px">No.</th><th>生徒名</th><th>登塾曜日</th></tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div class="p-footer">印刷日時: ${new Date().toLocaleString('ja-JP')}</div>
+    </div>`);
+}
+
+// ════════════════════════════
+//  月次コマ数集計
+// ════════════════════════════
+function renderMonthly() {
+  const month = document.getElementById('monthly-month').value;
+  const el    = document.getElementById('monthly-table');
+  if (!month) { el.innerHTML = ''; return; }
+
+  const [year, mon] = month.split('-');
+  const lastDay = new Date(+year, +mon, 0).getDate();
+  const start   = `${month}-01`;
+  const end     = `${month}-${String(lastDay).padStart(2,'0')}`;
+
+  const students = getStudents();
+  const att      = getAttendance().filter(a => a.date >= start && a.date <= end);
+
+  if (!students.length) {
+    el.innerHTML = `<div class="empty"><p>生徒が登録されていません</p></div>`;
+    return;
+  }
+
+  const rows = students.map(s => {
+    const recs = att.filter(a => a.studentId === s.id);
+    const cnt  = { '出席':0, '遅刻':0, '早退':0, '欠席':0 };
+    recs.forEach(r => { if (r.status in cnt) cnt[r.status]++; });
+    const koma = cnt['出席'] + cnt['遅刻'] + cnt['早退'];
+    return { s, cnt, koma };
+  });
+
+  // 月表示ラベル
+  const label = `${year}年${+mon}月`;
+
+  el.innerHTML = `
+    <p style="font-size:.82rem;color:var(--muted);margin-bottom:10px;">
+      ${label} — コマ数 ＝ 出席＋遅刻＋早退（欠席は含まない）
+    </p>
+    <table>
+      <thead>
+        <tr>
+          <th>生徒名</th>
+          <th style="color:var(--present)">出席</th>
+          <th style="color:var(--late)">遅刻</th>
+          <th style="color:var(--early)">早退</th>
+          <th style="color:var(--absent)">欠席</th>
+          <th style="color:var(--primary)">コマ数</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${rows.map(r => `
+          <tr>
+            <td><strong>${esc(r.s.name)}</strong></td>
+            <td style="color:var(--present);font-weight:800">${r.cnt['出席']}</td>
+            <td style="color:var(--late);font-weight:800">${r.cnt['遅刻']}</td>
+            <td style="color:var(--early);font-weight:800">${r.cnt['早退']}</td>
+            <td style="color:var(--absent);font-weight:800">${r.cnt['欠席']}</td>
+            <td style="color:var(--primary);font-weight:800;font-size:1.05rem">${r.koma}</td>
+          </tr>`).join('')}
+      </tbody>
+      <tfoot>
+        <tr style="background:#f6f8fb;">
+          <td><strong>合計</strong></td>
+          <td style="font-weight:800">${rows.reduce((s,r)=>s+r.cnt['出席'],0)}</td>
+          <td style="font-weight:800">${rows.reduce((s,r)=>s+r.cnt['遅刻'],0)}</td>
+          <td style="font-weight:800">${rows.reduce((s,r)=>s+r.cnt['早退'],0)}</td>
+          <td style="font-weight:800">${rows.reduce((s,r)=>s+r.cnt['欠席'],0)}</td>
+          <td style="color:var(--primary);font-weight:800">${rows.reduce((s,r)=>s+r.koma,0)}</td>
+        </tr>
+      </tfoot>
+    </table>`;
+}
+
+function exportMonthlyCSV() {
+  const month = document.getElementById('monthly-month').value;
+  if (!month) { toast('月を選択してください'); return; }
+
+  const [year, mon] = month.split('-');
+  const lastDay = new Date(+year, +mon, 0).getDate();
+  const start   = `${month}-01`;
+  const end     = `${month}-${String(lastDay).padStart(2,'0')}`;
+  const label   = `${year}年${+mon}月`;
+
+  const students = getStudents();
+  const att      = getAttendance().filter(a => a.date >= start && a.date <= end);
+
+  const header = ['生徒名', '出席', '遅刻', '早退', '欠席', 'コマ数'];
+  const rows   = students.map(s => {
+    const recs = att.filter(a => a.studentId === s.id);
+    const cnt  = { '出席':0, '遅刻':0, '早退':0, '欠席':0 };
+    recs.forEach(r => { if (r.status in cnt) cnt[r.status]++; });
+    const koma = cnt['出席'] + cnt['遅刻'] + cnt['早退'];
+    return [s.name, cnt['出席'], cnt['遅刻'], cnt['早退'], cnt['欠席'], koma];
+  });
+
+  const csv  = [header, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\r\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url; a.download = `月次コマ数_${label}.csv`;
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+  toast(`${label}のCSVをダウンロードしました`);
+}
+
+// ════════════════════════════
 //  集計レポート
 // ════════════════════════════
 function renderReport() {
@@ -1219,11 +2473,196 @@ function exportCSV() {
 }
 
 // ════════════════════════════
+//  PINロック
+// ════════════════════════════
+const PIN_KEY = 'juku_pin';
+let _lockEntry  = [];
+let _setupEntry = [];
+let _setupMode  = 'set';   // 'set' | 'change' | 'remove' | 'verify-change' | 'verify-remove'
+let _setupFirst = '';
+let _deferredInstall = null;
+
+function buildPinPad(padId, enterFn, deleteFn) {
+  const pad = document.getElementById(padId);
+  const nums = [1,2,3,4,5,6,7,8,9,'',0,'⌫'];
+  pad.innerHTML = nums.map(n => {
+    if (n === '') return '<div></div>';
+    const cls = n === '⌫' ? 'pin-btn del-btn' : 'pin-btn';
+    const fn  = n === '⌫' ? `${deleteFn}()` : `${enterFn}(${n})`;
+    return `<button class="${cls}" onclick="${fn}">${n}</button>`;
+  }).join('');
+}
+
+function updateDots(prefix, count) {
+  for (let i = 0; i < 4; i++) {
+    document.getElementById(`${prefix}${i}`)?.classList.toggle('filled', i < count);
+  }
+}
+
+// ── ロック画面 ──
+function checkPinOnLoad() {
+  if (!localStorage.getItem(PIN_KEY)) return;
+  document.getElementById('lock-screen').classList.remove('hidden');
+  buildPinPad('lock-pad', 'lockEnter', 'lockDelete');
+  updateDots('ld', 0);
+}
+
+function lockEnter(d) {
+  if (_lockEntry.length >= 4) return;
+  _lockEntry.push(d);
+  updateDots('ld', _lockEntry.length);
+  if (_lockEntry.length === 4) setTimeout(checkLock, 180);
+}
+
+function lockDelete() {
+  _lockEntry.pop();
+  updateDots('ld', _lockEntry.length);
+  document.getElementById('lock-pin-error').textContent = '';
+}
+
+function checkLock() {
+  if (_lockEntry.join('') === localStorage.getItem(PIN_KEY)) {
+    document.getElementById('lock-screen').classList.add('hidden');
+  } else {
+    document.getElementById('lock-pin-error').textContent = '❌ PINが違います';
+    document.getElementById('lock-dots').classList.add('shake');
+    setTimeout(() => document.getElementById('lock-dots').classList.remove('shake'), 500);
+    _lockEntry = [];
+    updateDots('ld', 0);
+  }
+}
+
+// ── 設定モーダル ──
+function openSettings() {
+  const hasPin = !!localStorage.getItem(PIN_KEY);
+  document.getElementById('pin-status').textContent = hasPin
+    ? '✅ PINロックが有効です' : '🔓 PINロックは設定されていません';
+  const btns = document.getElementById('pin-setting-btns');
+  btns.innerHTML = hasPin
+    ? `<button class="btn btn-outline btn-sm" onclick="startPinSetup('change')">PINを変更する</button>
+       <button class="btn btn-danger btn-sm" onclick="startPinSetup('remove')">PINを解除する</button>`
+    : `<button class="btn btn-primary btn-sm" onclick="startPinSetup('set')">PINを設定する</button>`;
+  document.getElementById('settings-modal').classList.add('open');
+}
+
+function closeSettings() {
+  document.getElementById('settings-modal').classList.remove('open');
+}
+
+// ── PIN設定モーダル ──
+function startPinSetup(mode) {
+  _setupMode  = mode;
+  _setupEntry = [];
+  _setupFirst = '';
+  const phases = {
+    'set':           { title:'PINを設定する',   sub:'新しい4桁のPINを入力してください' },
+    'change':        { title:'PINを変更する',   sub:'現在のPINを入力してください' },
+    'remove':        { title:'PINを解除する',   sub:'現在のPINを確認します' },
+    'verify-change': { title:'PINを変更する',   sub:'新しい4桁のPINを入力してください' },
+    'verify-remove': { title:'PINを解除する',   sub:'もう一度入力してください' },
+  };
+  const p = phases[mode];
+  document.getElementById('ps-title').textContent = p.title;
+  document.getElementById('ps-sub').textContent   = p.sub;
+  document.getElementById('ps-error').textContent = '';
+  buildPinPad('setup-pad', 'setupEnter', 'setupDelete');
+  updateDots('sd', 0);
+  document.getElementById('pin-setup-modal').classList.add('open');
+}
+
+function closePinSetup() {
+  document.getElementById('pin-setup-modal').classList.remove('open');
+}
+
+function setupEnter(d) {
+  if (_setupEntry.length >= 4) return;
+  _setupEntry.push(d);
+  updateDots('sd', _setupEntry.length);
+  if (_setupEntry.length === 4) setTimeout(processSetup, 180);
+}
+
+function setupDelete() {
+  _setupEntry.pop();
+  updateDots('sd', _setupEntry.length);
+  document.getElementById('ps-error').textContent = '';
+}
+
+function processSetup() {
+  const entered = _setupEntry.join('');
+  const stored  = localStorage.getItem(PIN_KEY);
+
+  if (_setupMode === 'set') {
+    if (!_setupFirst) {
+      _setupFirst = entered;
+      document.getElementById('ps-sub').textContent = 'もう一度入力してください（確認）';
+      _setupEntry = []; updateDots('sd', 0);
+    } else if (entered === _setupFirst) {
+      localStorage.setItem(PIN_KEY, entered);
+      closePinSetup(); closeSettings();
+      toast('🔒 PINを設定しました');
+    } else {
+      document.getElementById('ps-error').textContent = '❌ PINが一致しません';
+      _setupFirst = ''; _setupEntry = []; updateDots('sd', 0);
+      document.getElementById('ps-sub').textContent = '新しい4桁のPINを入力してください';
+    }
+  } else if (_setupMode === 'change') {
+    if (entered !== stored) {
+      document.getElementById('ps-error').textContent = '❌ PINが違います';
+      _setupEntry = []; updateDots('sd', 0);
+    } else {
+      startPinSetup('verify-change');
+    }
+  } else if (_setupMode === 'verify-change') {
+    if (!_setupFirst) {
+      _setupFirst = entered;
+      document.getElementById('ps-sub').textContent = 'もう一度入力してください（確認）';
+      _setupEntry = []; updateDots('sd', 0);
+    } else if (entered === _setupFirst) {
+      localStorage.setItem(PIN_KEY, entered);
+      closePinSetup(); closeSettings();
+      toast('🔒 PINを変更しました');
+    } else {
+      document.getElementById('ps-error').textContent = '❌ PINが一致しません';
+      _setupFirst = ''; _setupEntry = []; updateDots('sd', 0);
+      document.getElementById('ps-sub').textContent = '新しい4桁のPINを入力してください';
+    }
+  } else if (_setupMode === 'remove') {
+    if (entered !== stored) {
+      document.getElementById('ps-error').textContent = '❌ PINが違います';
+      _setupEntry = []; updateDots('sd', 0);
+    } else {
+      localStorage.removeItem(PIN_KEY);
+      closePinSetup(); closeSettings();
+      toast('🔓 PINを解除しました');
+    }
+  }
+}
+
+// ── PWAインストール ──
+window.addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  _deferredInstall = e;
+  document.getElementById('pwa-install-btn').style.display = '';
+});
+
+function installPWA() {
+  if (!_deferredInstall) return;
+  _deferredInstall.prompt();
+  _deferredInstall.userChoice.then(() => { _deferredInstall = null; });
+}
+
+// ── サービスワーカー登録 ──
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
+}
+
+// ════════════════════════════
 //  初期化
 // ════════════════════════════
 function init() {
   // 生徒登録フォームの曜日
   buildDays('s-days', 's');
+  initSearchFilter();
 
   // 曜日フィルタ select
   const sel = document.getElementById('r-day');
@@ -1239,9 +2678,15 @@ function init() {
   document.getElementById('r-start').value = first;
   document.getElementById('r-end').value   = today;
 
+  // 月次集計：今月をデフォルト
+  document.getElementById('monthly-month').value = today.slice(0, 7);
+
   updateBackupInfo();
   renderStudents();
   renderToday();
+  renderMakeupList();
+  renderFollowList();
+  checkPinOnLoad();
 }
 
 // モーダル背景クリックで閉じる
@@ -1250,6 +2695,21 @@ document.getElementById('edit-modal').addEventListener('click', function(e) {
 });
 document.getElementById('restore-modal').addEventListener('click', function(e) {
   if (e.target === this) closeRestoreModal();
+});
+document.getElementById('settings-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeSettings();
+});
+document.getElementById('pin-setup-modal').addEventListener('click', function(e) {
+  if (e.target === this) closePinSetup();
+});
+document.getElementById('contact-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeContactModal();
+});
+document.getElementById('template-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeTemplateModal();
+});
+document.getElementById('makeup-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeMakeupModal();
 });
 document.getElementById('timememo-modal').addEventListener('click', function(e) {
   if (e.target === this) {

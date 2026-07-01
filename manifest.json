@@ -1,0 +1,19 @@
+{
+  "name": "塾出席管理",
+  "short_name": "出席管理",
+  "description": "塾の出席を管理するアプリ",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f0f4f8",
+  "theme_color": "#4361ee",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
