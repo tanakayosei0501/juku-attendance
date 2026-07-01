@@ -724,6 +724,39 @@
     }
     .btn-ghost-white:hover { background: rgba(255,255,255,.28); }
 
+    /* ── 学年 ── */
+    .grade-badge {
+      display: inline-block;
+      font-size: .7rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 20px;
+      background: #e8f0fe;
+      color: var(--primary);
+      border: 1px solid #c5d5fc;
+      white-space: nowrap;
+    }
+    .grade-tag {
+      font-size: .72rem;
+      color: var(--primary);
+      background: #eef1fd;
+      border-radius: 6px;
+      padding: 1px 6px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    select.grade-select {
+      padding: 9px 12px;
+      border: 1.5px solid var(--border);
+      border-radius: 8px;
+      font-size: .9rem;
+      font-family: inherit;
+      background: #fff;
+      color: var(--text);
+      cursor: pointer;
+    }
+    select.grade-select:focus { outline: none; border-color: var(--primary); }
+
     /* ── バックアップバー ── */
     .backup-bar {
       background: #fffbeb;
@@ -936,6 +969,11 @@
     </div>
 
     <div class="card" id="today-card">
+      <div style="margin-bottom:10px;">
+        <select id="today-grade-filter" class="grade-select" onchange="renderToday()" style="width:100%">
+          <option value="">全学年</option>
+        </select>
+      </div>
       <div id="today-list"></div>
     </div>
 
@@ -964,6 +1002,12 @@
         <input type="text" id="s-name" placeholder="例：田中 花子" />
       </div>
       <div class="form-group">
+        <label>学年（任意）</label>
+        <select id="s-grade" class="grade-select" style="width:100%">
+          <option value="">未設定</option>
+        </select>
+      </div>
+      <div class="form-group">
         <label>登塾曜日（複数選択OK）</label>
         <div class="days-grid" id="s-days"></div>
       </div>
@@ -983,6 +1027,11 @@
         <button class="btn btn-outline btn-sm" onclick="clearSearch()">クリア</button>
       </div>
       <div class="filter-days-row" id="filter-days-row"></div>
+      <div style="margin-bottom:10px;">
+        <select id="filter-grade" class="grade-select" onchange="filterStudents()" style="width:100%">
+          <option value="">全学年</option>
+        </select>
+      </div>
       <div class="search-count" id="search-count"></div>
       <div id="student-list"></div>
     </div>
@@ -1019,6 +1068,12 @@
           <label>対象月</label>
           <input type="month" id="monthly-month" onchange="renderMonthly()" style="padding:11px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:1rem;font-family:inherit;width:100%;background:#fff;color:var(--text);" />
         </div>
+        <div class="form-group" style="margin-bottom:0;flex:1;min-width:140px;">
+          <label>学年</label>
+          <select id="monthly-grade" class="grade-select" onchange="renderMonthly()" style="width:100%">
+            <option value="">全学年</option>
+          </select>
+        </div>
         <button class="btn btn-outline btn-sm" style="align-self:flex-end;" onclick="exportMonthlyCSV()">📥 月次CSV</button>
         <button class="btn btn-outline btn-sm" style="align-self:flex-end;" onclick="printMonthly()">🖨️ 印刷</button>
       </div>
@@ -1040,6 +1095,12 @@
           <label>曜日</label>
           <select id="r-day" onchange="renderReport()"></select>
         </div>
+        <div class="form-group">
+          <label>学年</label>
+          <select id="r-grade" class="grade-select" onchange="renderReport()" style="width:100%">
+            <option value="">全学年</option>
+          </select>
+        </div>
       </div>
       <button class="btn btn-success btn-full" onclick="exportCSV()" style="margin-bottom:16px;">📥 CSVダウンロード</button>
       <div class="table-wrap"><div id="report-table"></div></div>
@@ -1057,6 +1118,12 @@
     <div class="form-group">
       <label>生徒名</label>
       <input type="text" id="e-name" />
+    </div>
+    <div class="form-group">
+      <label>学年</label>
+      <select id="e-grade" class="grade-select" style="width:100%">
+        <option value="">未設定</option>
+      </select>
     </div>
     <div class="form-group">
       <label>登塾曜日</label>
@@ -1260,6 +1327,8 @@ const AK  = 'juku_attendance';
 const LBK = 'juku_last_backup';
 const DAYS    = ['月','火','水','木','金','土','日'];
 const STATUSES = ['出席','欠席','遅刻','早退'];
+const GRADES  = ['小学1年生','小学2年生','小学3年生','小学4年生','小学5年生','小学6年生',
+                  '中学1年生','中学2年生','中学3年生','高校1年生','高校2年生','高校3年生'];
 
 // ════════════════════════════
 //  データアクセス
@@ -1740,10 +1809,13 @@ function renderToday() {
   const dateStr = `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${DAYS[di]}曜日）`;
   document.getElementById('today-date-str').textContent = dateStr;
 
-  const allStudents = getStudents().filter(s => s.days.includes(di));
-  const att         = getAttendance();
+  const gradeFilter = document.getElementById('today-grade-filter')?.value || '';
+  const allStudents = getStudents().filter(s =>
+    s.days.includes(di) && (!gradeFilter || (s.grade || '') === gradeFilter)
+  );
+  const att = getAttendance();
 
-  const total    = allStudents.length;
+  const total = allStudents.length;
   const recorded = allStudents.filter(s => att.some(a => a.date === today && a.studentId === s.id));
   const doneCount = recorded.length;
 
@@ -1821,10 +1893,13 @@ function buildAttRows(students, att, date, context) {
         onclick="recordAttCtx('${s.id}','${date}','${st}','${context||'att'}')">${st}</button>
     `).join('');
 
+    const gradeTag = s.grade
+      ? `<span class="grade-tag">${esc(s.grade)}</span>` : '';
+
     return `
       <div class="attendance-row ${isUnrec ? 'att-unrecorded' : ''}">
         <div class="att-name-wrap">
-          <div class="att-name">${esc(s.name)}</div>
+          <div class="att-name">${esc(s.name)} ${gradeTag}</div>
           ${metaHtml}
         </div>
         <div class="status-buttons">${btns}</div>
@@ -1922,6 +1997,23 @@ function _refresh(context) {
 }
 
 // ════════════════════════════
+//  学年セレクト初期化
+// ════════════════════════════
+function initGradeSelect(id, current = '') {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.innerHTML = '<option value="">未設定</option>'
+    + GRADES.map(g => `<option value="${g}"${current === g ? ' selected' : ''}>${g}</option>`).join('');
+}
+
+function initGradeFilter(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.innerHTML = '<option value="">全学年</option>'
+    + GRADES.map(g => `<option value="${g}">${g}</option>`).join('');
+}
+
+// ════════════════════════════
 //  曜日チェックボックス生成
 // ════════════════════════════
 function buildDays(containerId, prefix, checked = []) {
@@ -1968,28 +2060,24 @@ function clearSearch() {
   _searchQ = '';
   _filterDays.clear();
   document.getElementById('search-input').value = '';
+  document.getElementById('filter-grade').value = '';
   DAYS.forEach((_, i) => document.getElementById(`fday-${i}`)?.classList.remove('active'));
   renderStudents();
 }
 
 function renderStudents() {
-  const all = getStudents();
-  let list  = all;
+  const all         = getStudents();
+  const gradeFilter = document.getElementById('filter-grade')?.value || '';
+  let list = all;
 
-  if (_searchQ) {
-    list = list.filter(s => s.name.includes(_searchQ));
-  }
-  if (_filterDays.size > 0) {
-    list = list.filter(s => s.days.some(d => _filterDays.has(d)));
-  }
+  if (_searchQ)          list = list.filter(s => s.name.includes(_searchQ));
+  if (_filterDays.size > 0) list = list.filter(s => s.days.some(d => _filterDays.has(d)));
+  if (gradeFilter)       list = list.filter(s => (s.grade || '') === gradeFilter);
 
-  // 件数表示
   const countEl = document.getElementById('search-count');
   if (countEl) {
-    const active = _searchQ || _filterDays.size > 0;
-    countEl.innerHTML = active
-      ? `<span>${list.length}名</span> / ${all.length}名中`
-      : '';
+    const active = _searchQ || _filterDays.size > 0 || gradeFilter;
+    countEl.innerHTML = active ? `<span>${list.length}名</span> / ${all.length}名中` : '';
   }
 
   const el = document.getElementById('student-list');
@@ -2004,6 +2092,8 @@ function renderStudents() {
   }
 
   el.innerHTML = list.map(s => {
+    const gradeBadge = s.grade
+      ? `<span class="grade-badge">${esc(s.grade)}</span>` : '';
     const badges = s.days.slice().sort((a,b)=>a-b).map(d => {
       const cls = d === 5 ? 'sat' : d === 6 ? 'sun' : '';
       return `<span class="day-badge ${cls}">${DAYS[d]}</span>`;
@@ -2011,7 +2101,7 @@ function renderStudents() {
     return `
       <div class="student-item">
         <div class="student-info">
-          <div class="student-name">${esc(s.name)}</div>
+          <div class="student-name">${esc(s.name)} ${gradeBadge}</div>
           <div class="student-days">${badges}</div>
         </div>
         <div class="student-actions">
@@ -2023,14 +2113,16 @@ function renderStudents() {
 }
 
 function addStudent() {
-  const name = document.getElementById('s-name').value.trim();
+  const name  = document.getElementById('s-name').value.trim();
   if (!name) { toast('生徒名を入力してください'); return; }
-  const days = checkedDays('s');
+  const days  = checkedDays('s');
   if (!days.length) { toast('曜日を1つ以上選んでください'); return; }
+  const grade = document.getElementById('s-grade').value;
   const students = getStudents();
-  students.push({ id: uid(), name, days });
+  students.push({ id: uid(), name, grade, days });
   saveStudents(students);
   document.getElementById('s-name').value = '';
+  initGradeSelect('s-grade');
   buildDays('s-days', 's');
   renderStudents();
   toast(`「${name}」を登録しました`);
@@ -2048,8 +2140,9 @@ function deleteStudent(id) {
 function openEdit(id) {
   const s = getStudents().find(x => x.id === id);
   if (!s) return;
-  document.getElementById('e-id').value  = id;
+  document.getElementById('e-id').value   = id;
   document.getElementById('e-name').value = s.name;
+  initGradeSelect('e-grade', s.grade || '');
   buildDays('e-days', 'e', s.days);
   document.getElementById('edit-modal').classList.add('open');
 }
@@ -2059,14 +2152,15 @@ function closeModal() {
 }
 
 function saveEdit() {
-  const id   = document.getElementById('e-id').value;
-  const name = document.getElementById('e-name').value.trim();
+  const id    = document.getElementById('e-id').value;
+  const name  = document.getElementById('e-name').value.trim();
   if (!name) { toast('生徒名を入力してください'); return; }
-  const days = checkedDays('e');
+  const days  = checkedDays('e');
   if (!days.length) { toast('曜日を1つ以上選んでください'); return; }
+  const grade = document.getElementById('e-grade').value;
   const students = getStudents();
   const idx = students.findIndex(s => s.id === id);
-  if (idx >= 0) { students[idx].name = name; students[idx].days = days; saveStudents(students); }
+  if (idx >= 0) { students[idx].name = name; students[idx].grade = grade; students[idx].days = days; saveStudents(students); }
   closeModal();
   renderStudents();
   toast('生徒情報を更新しました');
@@ -2142,6 +2236,7 @@ function printToday() {
     return `<tr>
       <td class="center">${i+1}</td>
       <td>${esc(s.name)}</td>
+      <td style="font-size:9pt;color:#555">${esc(s.grade || '')}</td>
       <td class="center p-mark">${status === '出席' ? mark : ''}</td>
       <td class="center p-mark">${status === '欠席' ? mark : ''}</td>
       <td class="center p-mark">${status === '遅刻' ? mark : ''}</td>
@@ -2160,6 +2255,7 @@ function printToday() {
           <tr>
             <th style="width:36px">No.</th>
             <th>生徒名</th>
+            <th style="width:70px">学年</th>
             <th style="width:42px">出席</th>
             <th style="width:42px">欠席</th>
             <th style="width:42px">遅刻</th>
@@ -2197,6 +2293,7 @@ function printMonthly() {
     return `<tr>
       <td class="center">${i+1}</td>
       <td>${esc(s.name)}</td>
+      <td style="font-size:9pt;color:#555">${esc(s.grade || '')}</td>
       <td class="center">${cnt['出席']}</td>
       <td class="center">${cnt['遅刻']}</td>
       <td class="center">${cnt['早退']}</td>
@@ -2222,6 +2319,7 @@ function printMonthly() {
           <tr>
             <th style="width:36px">No.</th>
             <th>生徒名</th>
+            <th style="width:70px">学年</th>
             <th style="width:48px">出席</th>
             <th style="width:48px">遅刻</th>
             <th style="width:48px">早退</th>
@@ -2250,6 +2348,7 @@ function printStudentList() {
     <tr>
       <td class="center">${i+1}</td>
       <td>${esc(s.name)}</td>
+      <td style="font-size:9pt;color:#555">${esc(s.grade || '')}</td>
       <td>${s.days.slice().sort((a,b)=>a-b).map(d=>DAYS[d]+'曜').join('・')}</td>
     </tr>`).join('');
 
@@ -2259,7 +2358,7 @@ function printStudentList() {
       <div class="p-sub">全${students.length}名</div>
       <table class="p-table">
         <thead>
-          <tr><th style="width:36px">No.</th><th>生徒名</th><th>登塾曜日</th></tr>
+          <tr><th style="width:36px">No.</th><th>生徒名</th><th style="width:80px">学年</th><th>登塾曜日</th></tr>
         </thead>
         <tbody>${rows}</tbody>
       </table>
@@ -2271,8 +2370,9 @@ function printStudentList() {
 //  月次コマ数集計
 // ════════════════════════════
 function renderMonthly() {
-  const month = document.getElementById('monthly-month').value;
-  const el    = document.getElementById('monthly-table');
+  const month       = document.getElementById('monthly-month').value;
+  const el          = document.getElementById('monthly-table');
+  const gradeFilter = document.getElementById('monthly-grade')?.value || '';
   if (!month) { el.innerHTML = ''; return; }
 
   const [year, mon] = month.split('-');
@@ -2280,11 +2380,13 @@ function renderMonthly() {
   const start   = `${month}-01`;
   const end     = `${month}-${String(lastDay).padStart(2,'0')}`;
 
-  const students = getStudents();
-  const att      = getAttendance().filter(a => a.date >= start && a.date <= end);
+  let students = getStudents();
+  if (gradeFilter) students = students.filter(s => (s.grade || '') === gradeFilter);
+
+  const att = getAttendance().filter(a => a.date >= start && a.date <= end);
 
   if (!students.length) {
-    el.innerHTML = `<div class="empty"><p>生徒が登録されていません</p></div>`;
+    el.innerHTML = `<div class="empty"><p>条件に一致する生徒がいません</p></div>`;
     return;
   }
 
@@ -2296,7 +2398,6 @@ function renderMonthly() {
     return { s, cnt, koma };
   });
 
-  // 月表示ラベル
   const label = `${year}年${+mon}月`;
 
   el.innerHTML = `
@@ -2307,6 +2408,7 @@ function renderMonthly() {
       <thead>
         <tr>
           <th>生徒名</th>
+          <th>学年</th>
           <th style="color:var(--present)">出席</th>
           <th style="color:var(--late)">遅刻</th>
           <th style="color:var(--early)">早退</th>
@@ -2318,6 +2420,7 @@ function renderMonthly() {
         ${rows.map(r => `
           <tr>
             <td><strong>${esc(r.s.name)}</strong></td>
+            <td><span class="grade-tag">${esc(r.s.grade || '未設定')}</span></td>
             <td style="color:var(--present);font-weight:800">${r.cnt['出席']}</td>
             <td style="color:var(--late);font-weight:800">${r.cnt['遅刻']}</td>
             <td style="color:var(--early);font-weight:800">${r.cnt['早退']}</td>
@@ -2327,7 +2430,7 @@ function renderMonthly() {
       </tbody>
       <tfoot>
         <tr style="background:#f6f8fb;">
-          <td><strong>合計</strong></td>
+          <td colspan="2"><strong>合計</strong></td>
           <td style="font-weight:800">${rows.reduce((s,r)=>s+r.cnt['出席'],0)}</td>
           <td style="font-weight:800">${rows.reduce((s,r)=>s+r.cnt['遅刻'],0)}</td>
           <td style="font-weight:800">${rows.reduce((s,r)=>s+r.cnt['早退'],0)}</td>
@@ -2351,13 +2454,13 @@ function exportMonthlyCSV() {
   const students = getStudents();
   const att      = getAttendance().filter(a => a.date >= start && a.date <= end);
 
-  const header = ['生徒名', '出席', '遅刻', '早退', '欠席', 'コマ数'];
+  const header = ['生徒名', '学年', '出席', '遅刻', '早退', '欠席', 'コマ数'];
   const rows   = students.map(s => {
     const recs = att.filter(a => a.studentId === s.id);
     const cnt  = { '出席':0, '遅刻':0, '早退':0, '欠席':0 };
     recs.forEach(r => { if (r.status in cnt) cnt[r.status]++; });
     const koma = cnt['出席'] + cnt['遅刻'] + cnt['早退'];
-    return [s.name, cnt['出席'], cnt['遅刻'], cnt['早退'], cnt['欠席'], koma];
+    return [s.name, s.grade || '', cnt['出席'], cnt['遅刻'], cnt['早退'], cnt['欠席'], koma];
   });
 
   const csv  = [header, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\r\n');
@@ -2374,19 +2477,22 @@ function exportMonthlyCSV() {
 //  集計レポート
 // ════════════════════════════
 function renderReport() {
-  const startStr = document.getElementById('r-start').value;
-  const endStr   = document.getElementById('r-end').value;
-  const dayFilter= document.getElementById('r-day').value;
+  const startStr   = document.getElementById('r-start').value;
+  const endStr     = document.getElementById('r-end').value;
+  const dayFilter  = document.getElementById('r-day').value;
+  const gradeFilter= document.getElementById('r-grade')?.value || '';
 
-  const students = getStudents();
+  let students = getStudents();
+  if (gradeFilter) students = students.filter(s => (s.grade || '') === gradeFilter);
+
   let att = getAttendance();
-  if (startStr)       att = att.filter(a => a.date >= startStr);
-  if (endStr)         att = att.filter(a => a.date <= endStr);
+  if (startStr)         att = att.filter(a => a.date >= startStr);
+  if (endStr)           att = att.filter(a => a.date <= endStr);
   if (dayFilter !== '') att = att.filter(a => dayIdx(a.date) === +dayFilter);
 
   const el = document.getElementById('report-table');
   if (!students.length) {
-    el.innerHTML = `<div class="empty"><p>生徒が登録されていません</p></div>`;
+    el.innerHTML = `<div class="empty"><p>条件に一致する生徒がいません</p></div>`;
     return;
   }
 
@@ -2404,6 +2510,7 @@ function renderReport() {
       <thead>
         <tr>
           <th>生徒名</th>
+          <th>学年</th>
           <th style="color:var(--present)">出席</th>
           <th style="color:var(--absent)">欠席</th>
           <th style="color:var(--late)">遅刻</th>
@@ -2416,6 +2523,7 @@ function renderReport() {
         ${rows.map(r => `
           <tr>
             <td><strong>${esc(r.s.name)}</strong></td>
+            <td><span class="grade-tag">${esc(r.s.grade || '未設定')}</span></td>
             <td style="color:var(--present);font-weight:800">${r.cnt['出席']}</td>
             <td style="color:var(--absent);font-weight:800">${r.cnt['欠席']}</td>
             <td style="color:var(--late);font-weight:800">${r.cnt['遅刻']}</td>
@@ -2440,24 +2548,29 @@ function exportCSV() {
   const endStr   = document.getElementById('r-end').value;
   const dayFilter= document.getElementById('r-day').value;
 
-  const sMap = Object.fromEntries(getStudents().map(s => [s.id, s.name]));
+  const studentList = getStudents();
+  const sMap  = Object.fromEntries(studentList.map(s => [s.id, s]));
   let att = getAttendance();
-  if (startStr)       att = att.filter(a => a.date >= startStr);
-  if (endStr)         att = att.filter(a => a.date <= endStr);
+  if (startStr)         att = att.filter(a => a.date >= startStr);
+  if (endStr)           att = att.filter(a => a.date <= endStr);
   if (dayFilter !== '') att = att.filter(a => dayIdx(a.date) === +dayFilter);
 
   att.sort((a,b) => a.date.localeCompare(b.date) ||
-    (sMap[a.studentId]||'').localeCompare(sMap[b.studentId]||''));
+    (sMap[a.studentId]?.name||'').localeCompare(sMap[b.studentId]?.name||''));
 
-  const header = ['日付','曜日','生徒名','ステータス','時刻','メモ'];
-  const rows   = att.map(a => [
-    a.date,
-    DAYS[dayIdx(a.date)] + '曜日',
-    sMap[a.studentId] || '（削除済み）',
-    a.status,
-    a.time  || '',
-    a.memo  || ''
-  ]);
+  const header = ['日付','曜日','生徒名','学年','ステータス','時刻','メモ'];
+  const rows   = att.map(a => {
+    const st = sMap[a.studentId];
+    return [
+      a.date,
+      DAYS[dayIdx(a.date)] + '曜日',
+      st?.name || '（削除済み）',
+      st?.grade || '',
+      a.status,
+      a.time  || '',
+      a.memo  || ''
+    ];
+  });
 
   const csv  = [header, ...rows].map(r => r.map(v => `"${v}"`).join(',')).join('\r\n');
   const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
@@ -2660,9 +2773,16 @@ if ('serviceWorker' in navigator) {
 //  初期化
 // ════════════════════════════
 function init() {
-  // 生徒登録フォームの曜日
+  // 生徒登録フォームの曜日・学年
   buildDays('s-days', 's');
+  initGradeSelect('s-grade');
   initSearchFilter();
+
+  // 学年フィルタを各所に初期化
+  initGradeFilter('filter-grade');
+  initGradeFilter('today-grade-filter');
+  initGradeFilter('r-grade');
+  initGradeFilter('monthly-grade');
 
   // 曜日フィルタ select
   const sel = document.getElementById('r-day');
