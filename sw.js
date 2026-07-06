@@ -1,4 +1,4 @@
-const CACHE = 'juku-v3';
+const CACHE = 'juku-v4';
 const URLS  = ['/', '/index.html'];
 
 self.addEventListener('install', e =>
