@@ -870,6 +870,51 @@
     }
     #migration-banner.hidden { display: none; }
 
+    /* ── 宿題管理 ── */
+    .homework-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 13px 0; border-bottom: 1px solid var(--border);
+      gap: 10px; flex-wrap: wrap; transition: background .15s;
+      border-radius: 6px; margin: 0 -6px; padding-left: 6px; padding-right: 6px;
+    }
+    .homework-row:last-child { border-bottom: none; }
+    .homework-row.hw-done     { background: #f0fdf4; }
+    .homework-row.hw-forgotten { background: #fff5f5; }
+    .homework-row.hw-absent   { background: #f6f8fa; opacity: .72; }
+    .hw-name-wrap { flex: 1; min-width: 140px; }
+    .hw-name { font-weight: 800; font-size: .95rem; margin-bottom: 5px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .hw-memo-input {
+      width: 100%; padding: 5px 10px;
+      border: 1px solid var(--border); border-radius: 6px;
+      font-size: .82rem; font-family: inherit; background: #f8faff; color: var(--text);
+      transition: border-color .15s;
+    }
+    .hw-memo-input:focus { outline: none; border-color: var(--primary); background: #fff; }
+    .hw-status-buttons { display: flex; gap: 6px; flex-shrink: 0; }
+    .hw-btn {
+      padding: 9px 13px; border-radius: 8px; border: 1.5px solid var(--border);
+      font-size: .82rem; font-weight: 700; cursor: pointer; font-family: inherit;
+      background: #fff; color: var(--muted); transition: all .15s; white-space: nowrap;
+    }
+    .hw-btn:active { transform: scale(.93); }
+    .hw-btn.hw-done                   { border-color: var(--present); color: var(--present); }
+    .hw-btn.hw-done.active            { background: var(--present); color: #fff; }
+    .hw-btn.hw-forgotten              { border-color: var(--absent); color: var(--absent); }
+    .hw-btn.hw-forgotten.active       { background: var(--absent); color: #fff; }
+    .hw-btn.hw-absent-btn             { border-color: var(--muted); color: var(--muted); }
+    .hw-btn.hw-absent-btn.active      { background: var(--muted); color: #fff; }
+    .hw-summary {
+      display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px;
+      font-size: .8rem; font-weight: 700;
+    }
+    .hw-summary-chip {
+      padding: 3px 10px; border-radius: 20px; font-size: .78rem; font-weight: 700;
+    }
+    .hw-chip-done     { background: #d1fae5; color: #065f46; }
+    .hw-chip-forgotten { background: #fee2e2; color: #991b1b; }
+    .hw-chip-absent   { background: #f1f5f9; color: #64748b; }
+    .hw-chip-pending  { background: #f0f4f8; color: #8d99ae; }
+
     /* ── 認証画面 ── */
     #auth-screen {
       position: fixed; inset: 0;
@@ -1002,6 +1047,7 @@
 <nav class="tabs">
   <button class="tab-btn active" onclick="switchTab(this,'today')">📅 今日</button>
   <button class="tab-btn" onclick="switchTab(this,'attendance')">📋 出席記録</button>
+  <button class="tab-btn" onclick="switchTab(this,'homework')">📝 宿題</button>
   <button class="tab-btn" onclick="switchTab(this,'students')">👤 生徒管理</button>
   <button class="tab-btn" onclick="switchTab(this,'report')">📊 集計</button>
 </nav>
@@ -1168,6 +1214,32 @@
       <div class="table-wrap"><div id="report-table"></div></div>
     </div>
 
+  </div>
+
+  <!-- ── 宿題管理 ── -->
+  <div id="tab-homework" class="tab-panel">
+    <div class="card">
+      <div class="date-row">
+        <div class="form-group">
+          <label>日付</label>
+          <input type="date" id="hw-date" onchange="renderHomework()" />
+        </div>
+        <button class="btn btn-outline today-btn" onclick="setHomeworkToday()">今日</button>
+        <div class="day-chip" id="hw-day">---</div>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+        <div class="search-input-wrap" style="flex:1;min-width:160px;">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="hw-search" placeholder="名前で検索..." oninput="renderHomework()" />
+        </div>
+        <select id="hw-grade" class="grade-select" onchange="renderHomework()" style="flex:1;min-width:140px;">
+          <option value="">全学年</option>
+        </select>
+      </div>
+      <div class="hw-summary" id="hw-summary"></div>
+      <div class="search-count" id="hw-count"></div>
+      <div id="hw-list"></div>
+    </div>
   </div>
 
 </div><!-- /content -->
@@ -1422,7 +1494,7 @@ const GRADES  = ['小学1年生','小学2年生','小学3年生','小学4年生'
 // ════════════════════════════
 //  インメモリキャッシュ（Supabase から起動時にロード）
 // ════════════════════════════
-const _db = { students: [], attendance: [], makeups: [], templates: {} };
+const _db = { students: [], attendance: [], makeups: [], templates: {}, homework: [] };
 
 // ════════════════════════════
 //  データアクセス（キャッシュ読み書き）
@@ -1569,6 +1641,7 @@ function switchTab(btn, name) {
   btn.classList.add('active');
   if (name === 'today')      renderToday();
   if (name === 'attendance') renderAtt();
+  if (name === 'homework')   renderHomework();
   if (name === 'report')     { renderMonthly(); renderReport(); }
 }
 
@@ -2030,6 +2103,7 @@ async function recordAttCtx(studentId, date, status, context) {
     const { error } = await _supabase.from('attendance').delete().eq('id', existing.id);
     if (error) { toast('⚠️ 解除できませんでした'); return; }
     _db.attendance = _db.attendance.filter(a => a.id !== existing.id);
+    if (status === '欠席') await _autoUnsetHomeworkAbsent(studentId, date);
     _refresh(context);
     return;
   }
@@ -2059,6 +2133,9 @@ async function _saveAttRecord(studentId, date, status, time, memo, existing) {
   const idx = _db.attendance.findIndex(a => a.id === id);
   if (idx >= 0) _db.attendance[idx] = record;
   else _db.attendance.push(record);
+  // 宿題と連動
+  if (status === '欠席') await _autoSetHomeworkAbsent(studentId, date);
+  else if (existing?.status === '欠席') await _autoUnsetHomeworkAbsent(studentId, date);
   return true;
 }
 
@@ -2108,6 +2185,168 @@ function skipTimeMemo()  { _doSaveTimeMemo(false); }
 function _refresh(context) {
   if (context === 'today') renderToday();
   else renderAtt();
+  if (document.getElementById('tab-homework')?.classList.contains('active')) renderHomework();
+}
+
+// ════════════════════════════
+//  宿題管理
+// ════════════════════════════
+function setHomeworkToday() {
+  document.getElementById('hw-date').value = todayStr();
+  renderHomework();
+}
+
+function renderHomework() {
+  const date  = document.getElementById('hw-date').value;
+  const dayEl = document.getElementById('hw-day');
+  const listEl = document.getElementById('hw-list');
+  const countEl = document.getElementById('hw-count');
+  const summEl  = document.getElementById('hw-summary');
+
+  if (!date) {
+    dayEl.textContent = '---';
+    listEl.innerHTML  = '<div class="empty"><p>日付を選択してください</p></div>';
+    summEl.innerHTML  = '';
+    countEl.innerHTML = '';
+    return;
+  }
+
+  const di = dayIdx(date);
+  dayEl.textContent = DAYS[di] + '曜日';
+
+  const q           = (document.getElementById('hw-search')?.value || '').trim();
+  const gradeFilter = document.getElementById('hw-grade')?.value || '';
+
+  const allForDay = getStudents().filter(s => s.days.includes(di));
+  let students    = allForDay;
+  if (q)           students = students.filter(s => s.name.includes(q));
+  if (gradeFilter) students = students.filter(s => (s.grade || '') === gradeFilter);
+
+  countEl.innerHTML = (q || gradeFilter)
+    ? `<span>${students.length}名</span> / ${allForDay.length}名中` : '';
+
+  if (!students.length) {
+    summEl.innerHTML = '';
+    listEl.innerHTML = `<div class="empty"><div class="empty-icon">📅</div><p>${DAYS[di]}曜日に登録されている生徒がいません</p></div>`;
+    return;
+  }
+
+  // サマリー集計
+  let doneCnt = 0, forgotCnt = 0, absentCnt = 0, pendingCnt = 0;
+  students.forEach(s => {
+    const st = _db.homework.find(h => h.studentId === s.id && h.date === date)?.status;
+    if (st === '完了') doneCnt++;
+    else if (st === '忘れ') forgotCnt++;
+    else if (st === '欠席') absentCnt++;
+    else pendingCnt++;
+  });
+  summEl.innerHTML = [
+    doneCnt   ? `<span class="hw-summary-chip hw-chip-done">✅ 完了 ${doneCnt}名</span>` : '',
+    forgotCnt ? `<span class="hw-summary-chip hw-chip-forgotten">📚 忘れ ${forgotCnt}名</span>` : '',
+    absentCnt ? `<span class="hw-summary-chip hw-chip-absent">― 欠席 ${absentCnt}名</span>` : '',
+    pendingCnt ? `<span class="hw-summary-chip hw-chip-pending">未記録 ${pendingCnt}名</span>` : '',
+  ].join('');
+
+  listEl.innerHTML = students.map(s => {
+    const rec    = _db.homework.find(h => h.studentId === s.id && h.date === date);
+    const st     = rec?.status || null;
+    const memo   = rec?.memo   || '';
+    const rowCls = st === '完了' ? ' hw-done' : st === '忘れ' ? ' hw-forgotten' : st === '欠席' ? ' hw-absent' : '';
+    const gradeTag = s.grade ? `<span class="grade-tag">${esc(s.grade)}</span>` : '';
+
+    const btns = [
+      { st: '完了', cls: 'hw-done',       label: '✅ 完了' },
+      { st: '忘れ', cls: 'hw-forgotten',  label: '📚 忘れ' },
+      { st: '欠席', cls: 'hw-absent-btn', label: '― 欠席' },
+    ].map(b => `<button class="hw-btn ${b.cls}${st === b.st ? ' active' : ''}"
+        onclick="recordHomework('${s.id}','${date}','${b.st}')">${b.label}</button>`).join('');
+
+    return `
+      <div class="homework-row${rowCls}">
+        <div class="hw-name-wrap">
+          <div class="hw-name">${esc(s.name)}${gradeTag}</div>
+          <input type="text" class="hw-memo-input" placeholder="備考（任意）"
+                 value="${esc(memo)}" maxlength="50"
+                 onblur="saveHomeworkMemo('${s.id}','${date}',this.value)" />
+        </div>
+        <div class="hw-status-buttons">${btns}</div>
+      </div>`;
+  }).join('');
+}
+
+async function recordHomework(studentId, date, status) {
+  const existing = _db.homework.find(h => h.studentId === studentId && h.date === date);
+
+  if (existing && existing.status === status) {
+    if (existing.memo) {
+      const { error } = await _supabase.from('homework').update({ status: null }).eq('id', existing.id);
+      if (error) { toast('⚠️ 保存できませんでした'); return; }
+      existing.status = null;
+    } else {
+      const { error } = await _supabase.from('homework').delete().eq('id', existing.id);
+      if (error) { toast('⚠️ 保存できませんでした'); return; }
+      _db.homework = _db.homework.filter(h => h.id !== existing.id);
+    }
+    renderHomework();
+    return;
+  }
+
+  let error;
+  if (existing) {
+    ({ error } = await _supabase.from('homework').update({ status }).eq('id', existing.id));
+    if (!error) existing.status = status;
+  } else {
+    const id = uid();
+    ({ error } = await _supabase.from('homework').insert({ id, student_id: studentId, date, status, memo: null }));
+    if (!error) _db.homework.push({ id, studentId, date, status, memo: undefined });
+  }
+  if (error) { toast('⚠️ 保存できませんでした'); return; }
+  renderHomework();
+}
+
+async function saveHomeworkMemo(studentId, date, raw) {
+  const memo = raw.trim() || null;
+  const existing = _db.homework.find(h => h.studentId === studentId && h.date === date);
+  if (existing) {
+    if ((existing.memo || null) === memo) return;
+    if (!memo && !existing.status) {
+      await _supabase.from('homework').delete().eq('id', existing.id);
+      _db.homework = _db.homework.filter(h => h.id !== existing.id);
+    } else {
+      await _supabase.from('homework').update({ memo }).eq('id', existing.id);
+      existing.memo = memo || undefined;
+    }
+  } else if (memo) {
+    const id = uid();
+    await _supabase.from('homework').insert({ id, student_id: studentId, date, status: null, memo });
+    _db.homework.push({ id, studentId, date, status: null, memo });
+  }
+}
+
+async function _autoSetHomeworkAbsent(studentId, date) {
+  const existing = _db.homework.find(h => h.studentId === studentId && h.date === date);
+  if (existing?.status === '欠席') return;
+  let error;
+  if (existing) {
+    ({ error } = await _supabase.from('homework').update({ status: '欠席' }).eq('id', existing.id));
+    if (!error) existing.status = '欠席';
+  } else {
+    const id = uid();
+    ({ error } = await _supabase.from('homework').insert({ id, student_id: studentId, date, status: '欠席', memo: null }));
+    if (!error) _db.homework.push({ id, studentId, date, status: '欠席', memo: undefined });
+  }
+}
+
+async function _autoUnsetHomeworkAbsent(studentId, date) {
+  const existing = _db.homework.find(h => h.studentId === studentId && h.date === date);
+  if (!existing || existing.status !== '欠席') return;
+  if (existing.memo) {
+    await _supabase.from('homework').update({ status: null }).eq('id', existing.id);
+    existing.status = null;
+  } else {
+    await _supabase.from('homework').delete().eq('id', existing.id);
+    _db.homework = _db.homework.filter(h => h.id !== existing.id);
+  }
 }
 
 // ════════════════════════════
@@ -2933,17 +3172,19 @@ function hideLoading() {
 //  Supabase データロード
 // ════════════════════════════
 async function loadAllData() {
-  const [s, a, m, t] = await Promise.all([
+  const [s, a, m, t, hw] = await Promise.all([
     _supabase.from('students').select('*').order('created_at'),
     _supabase.from('attendance').select('*'),
     _supabase.from('makeups').select('*'),
-    _supabase.from('settings').select('*')
+    _supabase.from('settings').select('*'),
+    _supabase.from('homework').select('*')
   ]);
   _db.students   = (s.data || []).map(r => ({ id: r.id, name: r.name, grade: r.grade || '', days: r.days || [] }));
   _db.attendance = (a.data || []).map(r => ({ id: r.id, date: r.date, studentId: r.student_id, status: r.status, time: r.time || undefined, memo: r.memo || undefined }));
   _db.makeups    = (m.data || []).map(r => ({ id: r.id, studentId: r.student_id, originalDate: r.original_date, makeupDate: r.makeup_date || undefined, memo: r.memo || undefined, done: r.done }));
   const tplRow   = (t.data || []).find(r => r.key === 'templates');
   _db.templates  = tplRow ? JSON.parse(tplRow.value) : {};
+  _db.homework   = (hw.data || []).map(r => ({ id: r.id, studentId: r.student_id, date: r.date, status: r.status || null, memo: r.memo || undefined }));
 }
 
 // ════════════════════════════
@@ -3043,6 +3284,10 @@ async function continueInit() {
     return;
   }
   hideLoading();
+
+  // 宿題タブの初期化
+  initGradeFilter('hw-grade');
+  document.getElementById('hw-date').value = todayStr();
 
   updateBackupInfo();
   renderStudents();
