@@ -10,6 +10,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="出席管理">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -841,6 +842,34 @@
       .p-section { margin-bottom: 24px; }
     }
 
+    /* ── ローディング ── */
+    #loading-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,.4);
+      z-index: 800; display: flex; align-items: center; justify-content: center;
+    }
+    #loading-overlay.hidden { display: none; }
+    .loading-card {
+      background: #fff; border-radius: 18px; padding: 36px 44px;
+      text-align: center; box-shadow: 0 12px 40px rgba(0,0,0,.25);
+      min-width: 200px;
+    }
+    .loading-spinner {
+      width: 44px; height: 44px;
+      border: 4px solid var(--border); border-top-color: var(--primary);
+      border-radius: 50%; animation: spin .75s linear infinite;
+      margin: 0 auto 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-msg { font-size: .95rem; font-weight: 700; color: var(--text); }
+
+    /* ── 移行バナー ── */
+    #migration-banner {
+      background: #eff6ff; border-bottom: 2px solid #93c5fd;
+      padding: 10px 16px; display: flex; align-items: center;
+      gap: 10px; flex-wrap: wrap; position: sticky; top: 53px; z-index: 39;
+    }
+    #migration-banner.hidden { display: none; }
+
     /* ── ロック画面 ── */
     #lock-screen {
       position: fixed;
@@ -936,6 +965,12 @@
   </div>
 </div>
 <input type="file" id="restore-input" accept=".json" style="display:none" onchange="handleRestoreFile(event)">
+<div id="migration-banner" class="hidden">
+  <span style="font-size:1.1rem">📦</span>
+  <span style="font-size:.88rem;font-weight:700;flex:1;">端末に保存された以前のデータをクラウドに移行できます</span>
+  <button class="btn btn-primary btn-sm" onclick="migrateFromLocalStorage()">今すぐ移行する</button>
+  <button class="btn btn-outline btn-sm" onclick="hideMigrationBanner()">後で</button>
+</div>
 
 <nav class="tabs">
   <button class="tab-btn active" onclick="switchTab(this,'today')">📅 今日</button>
@@ -1253,6 +1288,14 @@
   </div>
 </div>
 
+<!-- ── ローディングオーバーレイ ── -->
+<div id="loading-overlay">
+  <div class="loading-card">
+    <div class="loading-spinner"></div>
+    <div class="loading-msg" id="loading-msg">読み込み中...</div>
+  </div>
+</div>
+
 <!-- ── ロック画面 ── -->
 <div id="lock-screen" class="hidden">
   <div class="lock-card">
@@ -1320,10 +1363,15 @@
 
 <script>
 // ════════════════════════════
+//  Supabase
+// ════════════════════════════
+const SUPABASE_URL = 'https://xgisflbaomyplxoiwhda.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_-VyLSUzuHwOQ4mvt0_Z4_g_efv-PMAu';
+const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+// ════════════════════════════
 //  定数
 // ════════════════════════════
-const SK  = 'juku_students';
-const AK  = 'juku_attendance';
 const LBK = 'juku_last_backup';
 const DAYS    = ['月','火','水','木','金','土','日'];
 const STATUSES = ['出席','欠席','遅刻','早退'];
@@ -1331,12 +1379,17 @@ const GRADES  = ['小学1年生','小学2年生','小学3年生','小学4年生'
                   '中学1年生','中学2年生','中学3年生','高校1年生','高校2年生','高校3年生'];
 
 // ════════════════════════════
-//  データアクセス
+//  インメモリキャッシュ（Supabase から起動時にロード）
 // ════════════════════════════
-const getStudents   = () => JSON.parse(localStorage.getItem(SK) || '[]');
-const saveStudents  = v  => localStorage.setItem(SK, JSON.stringify(v));
-const getAttendance = () => JSON.parse(localStorage.getItem(AK) || '[]');
-const saveAttendance= v  => localStorage.setItem(AK, JSON.stringify(v));
+const _db = { students: [], attendance: [], makeups: [], templates: {} };
+
+// ════════════════════════════
+//  データアクセス（キャッシュ読み書き）
+// ════════════════════════════
+const getStudents    = () => _db.students;
+const saveStudents   = v  => { _db.students   = v; };
+const getAttendance  = () => _db.attendance;
+const saveAttendance = v  => { _db.attendance = v; };
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2);
 
 // ════════════════════════════
@@ -1441,18 +1494,27 @@ function closeRestoreModal() {
   document.getElementById('restore-modal').classList.remove('open');
 }
 
-function confirmRestore() {
+async function confirmRestore() {
   const data = window._pendingRestore;
   if (!data) return;
-  saveStudents(data.students);
-  saveAttendance(data.attendance);
-  if (Array.isArray(data.makeups)) saveMakeups(data.makeups);
-  if (data.templates) saveTemplatesData(data.templates);
+  showLoading('データを復元中...');
+  await _supabase.from('makeups').delete().neq('id', '');
+  await _supabase.from('attendance').delete().neq('id', '');
+  await _supabase.from('students').delete().neq('id', '');
+  if (data.students.length) {
+    await _supabase.from('students').insert(data.students.map(s => ({ id: s.id, name: s.name, grade: s.grade || '', days: s.days || [] })));
+  }
+  if (data.attendance.length) {
+    await _supabase.from('attendance').insert(data.attendance.map(a => ({ id: a.id, student_id: a.studentId, date: a.date, status: a.status, time: a.time || null, memo: a.memo || null })));
+  }
+  if (Array.isArray(data.makeups) && data.makeups.length) {
+    await _supabase.from('makeups').insert(data.makeups.map(m => ({ id: m.id, student_id: m.studentId, original_date: m.originalDate, makeup_date: m.makeupDate || null, memo: m.memo || null, done: m.done || false })));
+  }
+  if (data.templates) await saveTemplatesData(data.templates);
+  await loadAllData();
+  hideLoading();
   closeRestoreModal();
-  renderStudents();
-  renderAtt();
-  renderReport();
-  updateBackupInfo();
+  renderStudents(); renderAtt(); renderReport(); updateBackupInfo();
   toast('✅ データを復元しました');
 }
 
@@ -1472,8 +1534,6 @@ function switchTab(btn, name) {
 // ════════════════════════════
 //  保護者連絡文
 // ════════════════════════════
-const TK = 'juku_templates';
-
 const DEFAULT_TEMPLATES = {
   '欠席': '{日付}の授業について、{名前}さんが欠席でした。\nご確認をよろしくお願いいたします。',
   '遅刻': '{日付}の授業について、{名前}さんが{時刻}遅刻されました。\nご確認をよろしくお願いいたします。',
@@ -1481,10 +1541,12 @@ const DEFAULT_TEMPLATES = {
 };
 
 function getTemplates() {
-  const saved = JSON.parse(localStorage.getItem(TK) || '{}');
-  return { ...DEFAULT_TEMPLATES, ...saved };
+  return { ...DEFAULT_TEMPLATES, ..._db.templates };
 }
-function saveTemplatesData(obj) { localStorage.setItem(TK, JSON.stringify(obj)); }
+async function saveTemplatesData(obj) {
+  _db.templates = obj;
+  await _supabase.from('settings').upsert({ key: 'templates', value: JSON.stringify(obj) });
+}
 
 function generateContactMsg(name, date, status, time, memo) {
   const tpl  = getTemplates()[status] || DEFAULT_TEMPLATES[status] || '';
@@ -1509,8 +1571,8 @@ function closeTemplateModal() {
   document.getElementById('template-modal').classList.remove('open');
 }
 
-function saveTemplates() {
-  saveTemplatesData({
+async function saveTemplates() {
+  await saveTemplatesData({
     '欠席': document.getElementById('tpl-absent').value,
     '遅刻': document.getElementById('tpl-late').value,
     '早退': document.getElementById('tpl-early').value,
@@ -1519,9 +1581,10 @@ function saveTemplates() {
   toast('テンプレートを保存しました');
 }
 
-function resetTemplates() {
+async function resetTemplates() {
   if (!confirm('テンプレートをデフォルトに戻しますか？')) return;
-  localStorage.removeItem(TK);
+  await _supabase.from('settings').delete().eq('key', 'templates');
+  _db.templates = {};
   openTemplateModal();
   toast('デフォルトに戻しました');
 }
@@ -1595,9 +1658,8 @@ function closeContactModal() {
 // ════════════════════════════
 //  振替授業
 // ════════════════════════════
-const MK = 'juku_makeups';
-const getMakeups  = () => JSON.parse(localStorage.getItem(MK) || '[]');
-const saveMakeups = v  => localStorage.setItem(MK, JSON.stringify(v));
+const getMakeups  = () => _db.makeups;
+const saveMakeups = v  => { _db.makeups = v; };
 
 function formatDateJP(dateStr) {
   if (!dateStr) return '日程未定';
@@ -1678,38 +1740,46 @@ function closeMakeupModal() {
   document.getElementById('makeup-modal').classList.remove('open');
 }
 
-function saveMakeup() {
+async function saveMakeup() {
   const studentId    = document.getElementById('mk-student-id').value;
   const originalDate = document.getElementById('mk-original-date').value;
-  const makeupDate   = document.getElementById('mk-date').value || undefined;
-  const memo         = document.getElementById('mk-memo').value.trim() || undefined;
+  const makeupDate   = document.getElementById('mk-date').value || null;
+  const memo         = document.getElementById('mk-memo').value.trim() || null;
   const existingId   = document.getElementById('mk-id').value;
   const context      = document.getElementById('mk-context').value;
 
-  let makeups = getMakeups();
+  let error;
   if (existingId) {
-    const idx = makeups.findIndex(m => m.id === existingId);
-    if (idx >= 0) { makeups[idx].makeupDate = makeupDate; makeups[idx].memo = memo; }
+    ({ error } = await _supabase.from('makeups').update({ makeup_date: makeupDate, memo }).eq('id', existingId));
+    if (!error) {
+      const idx = _db.makeups.findIndex(m => m.id === existingId);
+      if (idx >= 0) { _db.makeups[idx].makeupDate = makeupDate || undefined; _db.makeups[idx].memo = memo || undefined; }
+    }
   } else {
-    makeups.push({ id: uid(), studentId, originalDate, makeupDate, memo, done: false });
+    const id = uid();
+    ({ error } = await _supabase.from('makeups').insert({ id, student_id: studentId, original_date: originalDate, makeup_date: makeupDate, memo, done: false }));
+    if (!error) _db.makeups.push({ id, studentId, originalDate, makeupDate: makeupDate || undefined, memo: memo || undefined, done: false });
   }
-  saveMakeups(makeups);
+  if (error) { toast('⚠️ 保存できませんでした'); return; }
   closeMakeupModal();
   renderMakeupList();
   _refresh(context);
   toast('振替を登録しました');
 }
 
-function doneMakeup(id) {
-  const makeups = getMakeups();
-  const idx = makeups.findIndex(m => m.id === id);
-  if (idx >= 0) { makeups[idx].done = true; saveMakeups(makeups); }
+async function doneMakeup(id) {
+  const { error } = await _supabase.from('makeups').update({ done: true }).eq('id', id);
+  if (error) { toast('⚠️ 保存できませんでした'); return; }
+  const idx = _db.makeups.findIndex(m => m.id === id);
+  if (idx >= 0) _db.makeups[idx].done = true;
   renderMakeupList();
   toast('振替完了としました');
 }
 
-function deleteMakeup(id) {
-  saveMakeups(getMakeups().filter(m => m.id !== id));
+async function deleteMakeup(id) {
+  const { error } = await _supabase.from('makeups').delete().eq('id', id);
+  if (error) { toast('⚠️ 削除できませんでした'); return; }
+  _db.makeups = _db.makeups.filter(m => m.id !== id);
   closeMakeupModal();
   renderMakeupList();
   toast('振替記録を削除しました');
@@ -1910,36 +1980,45 @@ function buildAttRows(students, att, date, context) {
 // ── 時刻＆メモモーダル ──
 let _tmCtx = null;
 
-function recordAttCtx(studentId, date, status, context) {
-  let att = getAttendance();
-  const idx = att.findIndex(a => a.date === date && a.studentId === studentId);
+async function recordAttCtx(studentId, date, status, context) {
+  const att = getAttendance();
+  const existing = att.find(a => a.date === date && a.studentId === studentId);
 
   // 同じボタン → 解除
-  if (idx >= 0 && att[idx].status === status) {
-    att.splice(idx, 1);
-    saveAttendance(att);
+  if (existing && existing.status === status) {
+    const { error } = await _supabase.from('attendance').delete().eq('id', existing.id);
+    if (error) { toast('⚠️ 解除できませんでした'); return; }
+    _db.attendance = _db.attendance.filter(a => a.id !== existing.id);
     _refresh(context);
     return;
   }
 
   // 遅刻・早退 → 時刻モーダル
   if (status === '遅刻' || status === '早退') {
-    const existing = att[idx] || null;
-    openTimeMemoModal(studentId, date, status, context, existing);
+    openTimeMemoModal(studentId, date, status, context, existing || null);
     return;
   }
 
-  // 出席・欠席 → 即記録（メモは保持）
-  const existingMemo = idx >= 0 ? att[idx].memo : undefined;
-  if (idx >= 0) {
-    att[idx].status = status;
-    att[idx].time   = undefined;
-    att[idx].memo   = existingMemo;
-  } else {
-    att.push({ id: uid(), date, studentId, status });
-  }
-  saveAttendance(att);
+  // 出席・欠席 → 即記録
+  await _saveAttRecord(studentId, date, status, undefined, existing?.memo, existing);
   _refresh(context);
+}
+
+async function _saveAttRecord(studentId, date, status, time, memo, existing) {
+  const id  = existing ? existing.id : uid();
+  const row = { id, student_id: studentId, date, status, time: time || null, memo: memo || null };
+  let error;
+  if (existing) {
+    ({ error } = await _supabase.from('attendance').update({ status, time: time || null, memo: memo || null }).eq('id', id));
+  } else {
+    ({ error } = await _supabase.from('attendance').insert(row));
+  }
+  if (error) { toast('⚠️ 保存できませんでした'); return false; }
+  const record = { id, date, studentId, status, time: time || undefined, memo: memo || undefined };
+  const idx = _db.attendance.findIndex(a => a.id === id);
+  if (idx >= 0) _db.attendance[idx] = record;
+  else _db.attendance.push(record);
+  return true;
 }
 
 function openTimeMemoModal(studentId, date, status, context, existing) {
@@ -1966,22 +2045,16 @@ function openMemoModal(studentId, date, context) {
     (rec.status === '遅刻' || rec.status === '早退') ? '' : 'none';
 }
 
-function _doSaveTimeMemo(includeTime) {
+async function _doSaveTimeMemo(includeTime) {
   if (!_tmCtx) return;
   const { studentId, date, status, context } = _tmCtx;
   const time = includeTime ? document.getElementById('timememo-time').value : undefined;
   const memo = document.getElementById('timememo-memo').value.trim() || undefined;
 
-  let att = getAttendance();
-  const idx = att.findIndex(a => a.date === date && a.studentId === studentId);
-  if (idx >= 0) {
-    att[idx].status = status;
-    att[idx].time   = time;
-    att[idx].memo   = memo;
-  } else {
-    att.push({ id: uid(), date, studentId, status, time, memo });
-  }
-  saveAttendance(att);
+  const existing = _db.attendance.find(a => a.date === date && a.studentId === studentId);
+  const ok = await _saveAttRecord(studentId, date, status, time, memo, existing);
+  if (!ok) return;
+
   document.getElementById('timememo-modal').classList.remove('open');
   document.getElementById('timememo-time-group').style.display = '';
   _tmCtx = null;
@@ -2112,15 +2185,16 @@ function renderStudents() {
   }).join('');
 }
 
-function addStudent() {
+async function addStudent() {
   const name  = document.getElementById('s-name').value.trim();
   if (!name) { toast('生徒名を入力してください'); return; }
   const days  = checkedDays('s');
   if (!days.length) { toast('曜日を1つ以上選んでください'); return; }
   const grade = document.getElementById('s-grade').value;
-  const students = getStudents();
-  students.push({ id: uid(), name, grade, days });
-  saveStudents(students);
+  const id    = uid();
+  const { error } = await _supabase.from('students').insert({ id, name, grade: grade || '', days });
+  if (error) { toast('⚠️ 保存できませんでした'); return; }
+  _db.students.push({ id, name, grade, days });
   document.getElementById('s-name').value = '';
   initGradeSelect('s-grade');
   buildDays('s-days', 's');
@@ -2128,11 +2202,14 @@ function addStudent() {
   toast(`「${name}」を登録しました`);
 }
 
-function deleteStudent(id) {
+async function deleteStudent(id) {
   const s = getStudents().find(x => x.id === id);
   if (!s || !confirm(`「${s.name}」を削除しますか？\n出席記録も一緒に削除されます。`)) return;
-  saveStudents(getStudents().filter(x => x.id !== id));
-  saveAttendance(getAttendance().filter(a => a.studentId !== id));
+  const { error } = await _supabase.from('students').delete().eq('id', id);
+  if (error) { toast('⚠️ 削除できませんでした'); return; }
+  _db.students   = _db.students.filter(x => x.id !== id);
+  _db.attendance = _db.attendance.filter(a => a.studentId !== id);
+  _db.makeups    = _db.makeups.filter(m => m.studentId !== id);
   renderStudents();
   toast(`「${s.name}」を削除しました`);
 }
@@ -2151,16 +2228,17 @@ function closeModal() {
   document.getElementById('edit-modal').classList.remove('open');
 }
 
-function saveEdit() {
+async function saveEdit() {
   const id    = document.getElementById('e-id').value;
   const name  = document.getElementById('e-name').value.trim();
   if (!name) { toast('生徒名を入力してください'); return; }
   const days  = checkedDays('e');
   if (!days.length) { toast('曜日を1つ以上選んでください'); return; }
   const grade = document.getElementById('e-grade').value;
-  const students = getStudents();
-  const idx = students.findIndex(s => s.id === id);
-  if (idx >= 0) { students[idx].name = name; students[idx].grade = grade; students[idx].days = days; saveStudents(students); }
+  const { error } = await _supabase.from('students').update({ name, grade: grade || '', days }).eq('id', id);
+  if (error) { toast('⚠️ 保存できませんでした'); return; }
+  const idx = _db.students.findIndex(s => s.id === id);
+  if (idx >= 0) { _db.students[idx].name = name; _db.students[idx].grade = grade; _db.students[idx].days = days; }
   closeModal();
   renderStudents();
   toast('生徒情報を更新しました');
@@ -2770,42 +2848,126 @@ if ('serviceWorker' in navigator) {
 }
 
 // ════════════════════════════
+//  ローディング
+// ════════════════════════════
+function showLoading(msg) {
+  document.getElementById('loading-msg').textContent = msg || '読み込み中...';
+  document.getElementById('loading-overlay').classList.remove('hidden');
+}
+function hideLoading() {
+  document.getElementById('loading-overlay').classList.add('hidden');
+}
+
+// ════════════════════════════
+//  Supabase データロード
+// ════════════════════════════
+async function loadAllData() {
+  const [s, a, m, t] = await Promise.all([
+    _supabase.from('students').select('*').order('created_at'),
+    _supabase.from('attendance').select('*'),
+    _supabase.from('makeups').select('*'),
+    _supabase.from('settings').select('*')
+  ]);
+  _db.students   = (s.data || []).map(r => ({ id: r.id, name: r.name, grade: r.grade || '', days: r.days || [] }));
+  _db.attendance = (a.data || []).map(r => ({ id: r.id, date: r.date, studentId: r.student_id, status: r.status, time: r.time || undefined, memo: r.memo || undefined }));
+  _db.makeups    = (m.data || []).map(r => ({ id: r.id, studentId: r.student_id, originalDate: r.original_date, makeupDate: r.makeup_date || undefined, memo: r.memo || undefined, done: r.done }));
+  const tplRow   = (t.data || []).find(r => r.key === 'templates');
+  _db.templates  = tplRow ? JSON.parse(tplRow.value) : {};
+}
+
+// ════════════════════════════
+//  データ移行（localStorage → Supabase）
+// ════════════════════════════
+async function migrateFromLocalStorage() {
+  const oldStudents = JSON.parse(localStorage.getItem('juku_students') || '[]');
+  if (!oldStudents.length) { toast('移行するデータがありません'); return; }
+  showLoading('データを移行中...');
+  const oldAtt     = JSON.parse(localStorage.getItem('juku_attendance') || '[]');
+  const oldMakeups = JSON.parse(localStorage.getItem('juku_makeups') || '[]');
+  const oldTplRaw  = localStorage.getItem('juku_templates');
+  const oldTpl     = oldTplRaw ? JSON.parse(oldTplRaw) : null;
+
+  const { error: se } = await _supabase.from('students').upsert(
+    oldStudents.map(s => ({ id: s.id, name: s.name, grade: s.grade || '', days: s.days || [] }))
+  );
+  if (se) { hideLoading(); toast('⚠️ 生徒データの移行に失敗しました'); return; }
+
+  if (oldAtt.length) {
+    const { error: ae } = await _supabase.from('attendance').upsert(
+      oldAtt.map(a => ({ id: a.id, student_id: a.studentId, date: a.date, status: a.status, time: a.time || null, memo: a.memo || null }))
+    );
+    if (ae) { hideLoading(); toast('⚠️ 出席データの移行に失敗しました'); return; }
+  }
+  if (oldMakeups.length) {
+    const { error: me } = await _supabase.from('makeups').upsert(
+      oldMakeups.map(m => ({ id: m.id, student_id: m.studentId, original_date: m.originalDate, makeup_date: m.makeupDate || null, memo: m.memo || null, done: m.done || false }))
+    );
+    if (me) { hideLoading(); toast('⚠️ 振替データの移行に失敗しました'); return; }
+  }
+  if (oldTpl) await saveTemplatesData(oldTpl);
+
+  localStorage.setItem('juku_migrated', '1');
+  await loadAllData();
+  hideLoading();
+  hideMigrationBanner();
+  renderStudents(); renderToday(); renderMakeupList(); renderFollowList(); renderMonthly(); renderReport();
+  toast('✅ データをクラウドに移行しました！');
+}
+
+function hideMigrationBanner() {
+  localStorage.setItem('juku_migrated', '1');
+  document.getElementById('migration-banner').classList.add('hidden');
+}
+
+function checkMigrationNeeded() {
+  const migrated = localStorage.getItem('juku_migrated');
+  const oldData  = localStorage.getItem('juku_students');
+  if (!migrated && oldData && JSON.parse(oldData).length > 0 && _db.students.length === 0) {
+    document.getElementById('migration-banner').classList.remove('hidden');
+  }
+}
+
+// ════════════════════════════
 //  初期化
 // ════════════════════════════
-function init() {
-  // 生徒登録フォームの曜日・学年
+async function init() {
+  // フォーム初期化
   buildDays('s-days', 's');
   initGradeSelect('s-grade');
   initSearchFilter();
-
-  // 学年フィルタを各所に初期化
   initGradeFilter('filter-grade');
   initGradeFilter('today-grade-filter');
   initGradeFilter('r-grade');
   initGradeFilter('monthly-grade');
 
-  // 曜日フィルタ select
   const sel = document.getElementById('r-day');
   sel.innerHTML = '<option value="">すべての曜日</option>' +
     DAYS.map((d,i) => `<option value="${i}">${d}曜日</option>`).join('');
 
-  // デフォルト日付
   const today = todayStr();
   document.getElementById('att-date').value = today;
-
-  // 今月の範囲
   const first = today.slice(0,8) + '01';
   document.getElementById('r-start').value = first;
   document.getElementById('r-end').value   = today;
-
-  // 月次集計：今月をデフォルト
   document.getElementById('monthly-month').value = today.slice(0, 7);
+
+  // Supabase からデータ読み込み
+  showLoading('データを読み込み中...');
+  try {
+    await loadAllData();
+  } catch(e) {
+    hideLoading();
+    toast('⚠️ データの読み込みに失敗しました。通信環境を確認してください。');
+    return;
+  }
+  hideLoading();
 
   updateBackupInfo();
   renderStudents();
   renderToday();
   renderMakeupList();
   renderFollowList();
+  checkMigrationNeeded();
   checkPinOnLoad();
 }
 
