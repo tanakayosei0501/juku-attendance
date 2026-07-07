@@ -3290,41 +3290,11 @@ function installPWA() {
 }
 
 // ── サービスワーカー登録 ──
+// HTML は vercel.json + SW の両方で no-store 設定のため、
+// オンライン時は常にネットから最新版を取得する。
+// SW のアップデートは skipWaiting + clients.claim でバックグラウンド反映。
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('/sw.js').then(reg => {
-    // 新しいSWが待機状態になったらトーストで通知
-    reg.addEventListener('updatefound', () => {
-      const newWorker = reg.installing;
-      newWorker.addEventListener('statechange', () => {
-        if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-          showUpdateToast();
-        }
-      });
-    });
-  }).catch(() => {});
-
-  // 新しいSWがclients.claim()でコントロールを取得したら自動リロード
-  let refreshing = false;
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (!refreshing) { refreshing = true; location.reload(); }
-  });
-}
-
-function showUpdateToast() {
-  const t = document.createElement('div');
-  t.style.cssText = [
-    'position:fixed;bottom:80px;left:50%;transform:translateX(-50%)',
-    'background:#1e293b;color:#fff;padding:12px 20px;border-radius:12px',
-    'font-size:.88rem;font-weight:700;z-index:9999;cursor:pointer',
-    'box-shadow:0 4px 20px rgba(0,0,0,.35);white-space:nowrap',
-  ].join(';');
-  t.textContent = '🔄 新しいバージョンがあります。タップして更新';
-  t.onclick = () => {
-    navigator.serviceWorker.getRegistration().then(reg => {
-      if (reg?.waiting) reg.waiting.postMessage('SKIP_WAITING');
-    });
-  };
-  document.body.appendChild(t);
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
 }
 
 // ════════════════════════════
