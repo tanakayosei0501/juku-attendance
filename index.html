@@ -870,6 +870,27 @@
     }
     #migration-banner.hidden { display: none; }
 
+    /* ── 休講日バナー ── */
+    .holiday-banner {
+      background: linear-gradient(135deg, #fef3c7, #fde68a);
+      border: 2px solid #f59e0b;
+      border-radius: 12px;
+      padding: 22px 20px;
+      text-align: center;
+      margin-bottom: 12px;
+    }
+    .holiday-banner-icon  { font-size: 2rem; margin-bottom: 6px; }
+    .holiday-banner-title { font-size: 1.05rem; font-weight: 800; color: #92400e; }
+    .holiday-banner-memo  { font-size: .82rem; color: #78350f; margin-top: 4px; }
+    /* ── 休講日管理リスト ── */
+    .holiday-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 10px 0; border-bottom: 1px solid var(--border); gap: 8px; flex-wrap: wrap;
+    }
+    .holiday-item:last-child { border-bottom: none; }
+    .holiday-date-label { font-weight: 800; font-size: .9rem; }
+    .holiday-memo-label { font-size: .8rem; color: var(--muted); }
+
     /* ── 宿題管理 ── */
     .homework-row {
       display: flex; align-items: center; justify-content: space-between;
@@ -1143,6 +1164,19 @@
       </div>
       <div class="search-count" id="search-count"></div>
       <div id="student-list"></div>
+    </div>
+
+    <!-- 休講日管理 -->
+    <div class="card">
+      <div class="card-title">🏖️ 休講日管理</div>
+      <p style="font-size:.83rem;color:var(--muted);margin-bottom:14px;">休講日に設定した日は出席・宿題の入力欄が非表示になり、集計から除外されます。</p>
+      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+        <input type="date" id="hl-date" style="flex:1;min-width:160px;padding:11px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:1rem;font-family:inherit;background:#fff;color:var(--text);" />
+        <input type="text" id="hl-memo" placeholder="理由（お盆休み など）" maxlength="30"
+               style="flex:2;min-width:160px;padding:11px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:.95rem;font-family:inherit;background:#fff;color:var(--text);" />
+        <button class="btn btn-primary" onclick="addHoliday()" style="white-space:nowrap;flex-shrink:0;">休講日に登録</button>
+      </div>
+      <div id="holiday-list"><div class="empty"><p>登録された休講日はありません</p></div></div>
     </div>
 
   </div>
@@ -1495,7 +1529,7 @@ const GRADES  = ['小学1年生','小学2年生','小学3年生','小学4年生'
 // ════════════════════════════
 //  インメモリキャッシュ（Supabase から起動時にロード）
 // ════════════════════════════
-const _db = { students: [], attendance: [], makeups: [], templates: {}, homework: [] };
+const _db = { students: [], attendance: [], makeups: [], templates: {}, homework: [], holidays: [] };
 
 // ════════════════════════════
 //  データアクセス（キャッシュ読み書き）
@@ -1907,7 +1941,8 @@ const DOT_CLASS = { '出席':'dot-present','欠席':'dot-absent','遅刻':'dot-l
 
 function computeFollowList() {
   const students = getStudents();
-  const att      = getAttendance();
+  const holidaySet = new Set(_db.holidays.map(h => h.date));
+  const att      = getAttendance().filter(a => !holidaySet.has(a.date));
   const results  = [];
 
   for (const s of students) {
@@ -1994,6 +2029,16 @@ function renderToday() {
   const dateStr = `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${DAYS[di]}曜日）`;
   document.getElementById('today-date-str').textContent = dateStr;
 
+  const listEl = document.getElementById('today-list');
+
+  const holiday = _db.holidays.find(h => h.date === today);
+  if (holiday) {
+    document.getElementById('today-progress-fill').style.width = '0%';
+    document.getElementById('today-counter-text').textContent = '';
+    listEl.innerHTML = holidayBannerHTML(holiday);
+    return;
+  }
+
   const gradeFilter = document.getElementById('today-grade-filter')?.value || '';
   const allStudents = getStudents().filter(s =>
     s.days.includes(di) && (!gradeFilter || (s.grade || '') === gradeFilter)
@@ -2008,8 +2053,6 @@ function renderToday() {
   const pct = total ? Math.round(doneCount / total * 100) : 0;
   document.getElementById('today-progress-fill').style.width = pct + '%';
   document.getElementById('today-counter-text').textContent  = `${doneCount} / ${total} 名`;
-
-  const listEl = document.getElementById('today-list');
 
   if (!total) {
     listEl.innerHTML = `<div class="empty"><div class="empty-icon">📅</div><p>${DAYS[di]}曜日に登録されている生徒がいません</p></div>`;
@@ -2215,6 +2258,14 @@ function renderHomework() {
   const di = dayIdx(date);
   dayEl.textContent = DAYS[di] + '曜日';
 
+  const holiday = _db.holidays.find(h => h.date === date);
+  if (holiday) {
+    summEl.innerHTML  = '';
+    countEl.innerHTML = '';
+    listEl.innerHTML  = holidayBannerHTML(holiday);
+    return;
+  }
+
   const q           = (document.getElementById('hw-search')?.value || '').trim();
   const gradeFilter = document.getElementById('hw-grade')?.value || '';
 
@@ -2348,6 +2399,81 @@ async function _autoUnsetHomeworkAbsent(studentId, date) {
     await _supabase.from('homework').delete().eq('id', existing.id);
     _db.homework = _db.homework.filter(h => h.id !== existing.id);
   }
+}
+
+// ════════════════════════════
+//  休講日管理
+// ════════════════════════════
+function holidayBannerHTML(holiday) {
+  const memo = holiday.memo ? `<div class="holiday-banner-memo">（${esc(holiday.memo)}）</div>` : '';
+  return `<div class="holiday-banner">
+    <div class="holiday-banner-icon">🏖️</div>
+    <div class="holiday-banner-title">本日は休講日です</div>
+    ${memo}
+  </div>`;
+}
+
+function renderHolidayList() {
+  const el = document.getElementById('holiday-list');
+  if (!el) return;
+  const list = [..._db.holidays].sort((a,b) => a.date.localeCompare(b.date));
+  if (!list.length) {
+    el.innerHTML = '<div class="empty"><p>登録された休講日はありません</p></div>';
+    return;
+  }
+  el.innerHTML = list.map(h => {
+    const d  = new Date(h.date + 'T00:00:00');
+    const di = dayIdx(h.date);
+    const label = `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${DAYS[di]}）`;
+    const memo  = h.memo ? `<span class="holiday-memo-label">― ${esc(h.memo)}</span>` : '';
+    return `<div class="holiday-item">
+      <div>
+        <span class="holiday-date-label">${label}</span>
+        ${memo}
+      </div>
+      <button class="btn btn-outline btn-sm" onclick="deleteHoliday('${h.id}')">削除</button>
+    </div>`;
+  }).join('');
+}
+
+async function addHoliday() {
+  const dateEl = document.getElementById('hl-date');
+  const memoEl = document.getElementById('hl-memo');
+  const date   = dateEl.value;
+  const memo   = memoEl.value.trim();
+
+  if (!date) { toast('日付を選択してください'); return; }
+  if (_db.holidays.some(h => h.date === date)) { toast('すでに登録されている日付です'); return; }
+
+  const id = uid();
+  const { error } = await _supabase.from('holidays').insert({ id, date, memo: memo || null });
+  if (error) { toast('⚠️ 保存できませんでした'); return; }
+
+  _db.holidays.push({ id, date, memo });
+  _db.holidays.sort((a,b) => a.date.localeCompare(b.date));
+  dateEl.value = '';
+  memoEl.value = '';
+  toast(`${date} を休講日に登録しました`);
+  renderHolidayList();
+  // 集計・表示の再描画
+  renderToday();
+  if (document.getElementById('tab-attendance')?.classList.contains('active')) renderAtt();
+  if (document.getElementById('tab-homework')?.classList.contains('active'))   renderHomework();
+  if (document.getElementById('tab-report')?.classList.contains('active'))     { renderMonthly(); renderReport(); }
+}
+
+async function deleteHoliday(id) {
+  const rec = _db.holidays.find(h => h.id === id);
+  if (!rec) return;
+  const { error } = await _supabase.from('holidays').delete().eq('id', id);
+  if (error) { toast('⚠️ 削除できませんでした'); return; }
+  _db.holidays = _db.holidays.filter(h => h.id !== id);
+  toast(`${rec.date} の休講日登録を削除しました`);
+  renderHolidayList();
+  renderToday();
+  if (document.getElementById('tab-attendance')?.classList.contains('active')) renderAtt();
+  if (document.getElementById('tab-homework')?.classList.contains('active'))   renderHomework();
+  if (document.getElementById('tab-report')?.classList.contains('active'))     { renderMonthly(); renderReport(); }
 }
 
 // ════════════════════════════
@@ -2547,6 +2673,12 @@ function renderAtt() {
   const di = dayIdx(date);
   dayEl.textContent = DAYS[di] + '曜日';
 
+  const holiday = _db.holidays.find(h => h.date === date);
+  if (holiday) {
+    listEl.innerHTML = holidayBannerHTML(holiday);
+    return;
+  }
+
   const students  = getStudents().filter(s => s.days.includes(di));
   const attendance = getAttendance();
 
@@ -2742,7 +2874,8 @@ function renderMonthly() {
   let students = getStudents();
   if (gradeFilter) students = students.filter(s => (s.grade || '') === gradeFilter);
 
-  const att = getAttendance().filter(a => a.date >= start && a.date <= end);
+  const holidayDates = new Set(_db.holidays.map(h => h.date));
+  const att = getAttendance().filter(a => a.date >= start && a.date <= end && !holidayDates.has(a.date));
 
   if (!students.length) {
     el.innerHTML = `<div class="empty"><p>条件に一致する生徒がいません</p></div>`;
@@ -2811,7 +2944,8 @@ function exportMonthlyCSV() {
   const label   = `${year}年${+mon}月`;
 
   const students = getStudents();
-  const att      = getAttendance().filter(a => a.date >= start && a.date <= end);
+  const holidayDatesCSV = new Set(_db.holidays.map(h => h.date));
+  const att      = getAttendance().filter(a => a.date >= start && a.date <= end && !holidayDatesCSV.has(a.date));
 
   const header = ['生徒名', '学年', '出席', '遅刻', '早退', '欠席', 'コマ数'];
   const rows   = students.map(s => {
@@ -2844,7 +2978,8 @@ function renderReport() {
   let students = getStudents();
   if (gradeFilter) students = students.filter(s => (s.grade || '') === gradeFilter);
 
-  let att = getAttendance();
+  const holidayDatesRep = new Set(_db.holidays.map(h => h.date));
+  let att = getAttendance().filter(a => !holidayDatesRep.has(a.date));
   if (startStr)         att = att.filter(a => a.date >= startStr);
   if (endStr)           att = att.filter(a => a.date <= endStr);
   if (dayFilter !== '') att = att.filter(a => dayIdx(a.date) === +dayFilter);
@@ -2909,7 +3044,8 @@ function exportCSV() {
 
   const studentList = getStudents();
   const sMap  = Object.fromEntries(studentList.map(s => [s.id, s]));
-  let att = getAttendance();
+  const holidayDatesExp = new Set(_db.holidays.map(h => h.date));
+  let att = getAttendance().filter(a => !holidayDatesExp.has(a.date));
   if (startStr)         att = att.filter(a => a.date >= startStr);
   if (endStr)           att = att.filter(a => a.date <= endStr);
   if (dayFilter !== '') att = att.filter(a => dayIdx(a.date) === +dayFilter);
@@ -3206,12 +3342,13 @@ function hideLoading() {
 //  Supabase データロード
 // ════════════════════════════
 async function loadAllData() {
-  const [s, a, m, t, hw] = await Promise.all([
+  const [s, a, m, t, hw, hl] = await Promise.all([
     _supabase.from('students').select('*').order('created_at'),
     _supabase.from('attendance').select('*'),
     _supabase.from('makeups').select('*'),
     _supabase.from('settings').select('*'),
-    _supabase.from('homework').select('*')
+    _supabase.from('homework').select('*'),
+    _supabase.from('holidays').select('*').order('date')
   ]);
   _db.students   = (s.data || []).map(r => ({ id: r.id, name: r.name, grade: r.grade || '', days: r.days || [] }));
   _db.attendance = (a.data || []).map(r => ({ id: r.id, date: r.date, studentId: r.student_id, status: r.status, time: r.time || undefined, memo: r.memo || undefined }));
@@ -3219,6 +3356,7 @@ async function loadAllData() {
   const tplRow   = (t.data || []).find(r => r.key === 'templates');
   _db.templates  = tplRow ? JSON.parse(tplRow.value) : {};
   _db.homework   = (hw.data || []).map(r => ({ id: r.id, studentId: r.student_id, date: r.date, status: r.status || null, memo: r.memo || undefined }));
+  _db.holidays   = (hl.data || []).map(r => ({ id: r.id, date: r.date, memo: r.memo || '' }));
 }
 
 // ════════════════════════════
@@ -3322,6 +3460,7 @@ async function continueInit() {
   // 宿題タブの初期化
   initGradeFilter('hw-grade');
   document.getElementById('hw-date').value = todayStr();
+  renderHolidayList();
 
   updateBackupInfo();
   renderStudents();

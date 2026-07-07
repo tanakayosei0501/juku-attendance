@@ -1,4 +1,4 @@
-const CACHE = 'juku-20260707';
+const CACHE = 'juku-20260707b';
 const HTML_URLS = ['/', '/index.html'];
 const STATIC_URLS = ['/manifest.json', '/icon.svg'];
 
