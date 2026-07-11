@@ -888,6 +888,26 @@
     .hw-forgot-item:last-child { border-bottom: none; }
 
     /* ── 小テスト ── */
+    /* ── 小テスト 対象者 ── */
+    .quiz-target-summary { font-size: .78rem; color: var(--primary); font-weight: 700; margin-top: 4px; cursor: pointer; text-decoration: underline; }
+    .quiz-target-unset   { font-size: .78rem; color: var(--muted); font-weight: 700; margin-top: 4px; cursor: pointer; text-decoration: underline; }
+    .grade-chip-btn {
+      padding: 6px 12px; border-radius: 20px; border: 1.5px solid var(--border);
+      font-size: .78rem; font-weight: 700; cursor: pointer; background: #fff; color: var(--text);
+      transition: all .15s; font-family: inherit;
+    }
+    .grade-chip-btn.active   { background: var(--primary); color: #fff; border-color: var(--primary); }
+    .grade-chip-btn.partial  { background: #e0e7ff; color: var(--primary); border-color: var(--primary); }
+    .grade-chip-btn.group    { border-color: #7c3aed; color: #7c3aed; }
+    .grade-chip-btn.group.active { background: #7c3aed; color: #fff; border-color: #7c3aed; }
+    .target-student-row {
+      display: flex; align-items: center; gap: 10px; padding: 9px 0;
+      border-bottom: 1px solid var(--border); cursor: pointer;
+    }
+    .target-student-row:last-child { border-bottom: none; }
+    .target-student-row input[type=checkbox] { width: 18px; height: 18px; cursor: pointer; accent-color: var(--primary); flex-shrink: 0; }
+    .target-selected-count { font-size: .88rem; font-weight: 800; color: var(--primary); }
+
     .quiz-test-card {
       border: 1.5px solid var(--border); border-radius: 10px; margin-bottom: 12px; overflow: hidden;
     }
@@ -1569,6 +1589,50 @@
 </div>
 
 <!-- ── PIN設定モーダル ── -->
+<!-- ── 小テスト 対象者設定モーダル ── -->
+<div class="overlay" id="quiz-target-modal">
+  <div class="modal" style="max-width:520px;max-height:88vh;display:flex;flex-direction:column;gap:0;padding:0;overflow:hidden;">
+    <div style="padding:20px 20px 0;">
+      <div class="card-title" style="margin-bottom:4px;">👥 対象者を設定</div>
+      <div id="qt-test-name" style="font-size:.82rem;color:var(--muted);margin-bottom:14px;"></div>
+
+      <!-- グループ選択 -->
+      <div style="font-size:.8rem;font-weight:800;color:var(--muted);margin-bottom:6px;">学年でまとめて選択</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+        <button class="grade-chip-btn group" onclick="toggleQuizTargetGroup('小学生')">小学生</button>
+        <button class="grade-chip-btn group" onclick="toggleQuizTargetGroup('中学生')">中学生</button>
+        <button class="grade-chip-btn group" onclick="toggleQuizTargetGroup('高校生')">高校生</button>
+      </div>
+      <div id="qt-grade-chips" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;"></div>
+
+      <!-- 個別検索 -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:8px;flex-wrap:wrap;">
+        <div style="font-size:.8rem;font-weight:800;color:var(--muted);">生徒を個別に選択</div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-outline btn-sm" onclick="selectAllQuizTargets()">全選択</button>
+          <button class="btn btn-outline btn-sm" onclick="clearAllQuizTargets()">全解除</button>
+        </div>
+      </div>
+      <div class="search-input-wrap" style="margin-bottom:8px;">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="qt-search" placeholder="名前で検索..." oninput="renderQuizTargetStudents()" />
+      </div>
+    </div>
+
+    <!-- 生徒リスト（スクロール） -->
+    <div id="qt-student-list" style="flex:1;overflow-y:auto;padding:0 20px;min-height:120px;"></div>
+
+    <!-- フッター -->
+    <div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;background:#fff;flex-wrap:wrap;">
+      <span class="target-selected-count" id="qt-count">0名選択中</span>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-outline" onclick="closeQuizTargetModal()">キャンセル</button>
+        <button class="btn btn-primary" onclick="saveQuizTargets()">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="pin-setup-modal">
   <div class="modal" style="max-width:320px;text-align:center;padding-bottom:20px;">
     <div class="card-title" id="ps-title" style="justify-content:center;">PINを設定する</div>
@@ -2548,6 +2612,16 @@ function setQuizToday() {
   renderQuiz();
 }
 
+// 対象者を取得（設定済みなら指定生徒、未設定ならその日の全生徒）
+function getQuizTargets(test, date) {
+  if (test.targetStudents && test.targetStudents.length > 0) {
+    const ids = new Set(test.targetStudents);
+    return getStudents().filter(s => ids.has(s.id));
+  }
+  const di = dayIdx(date);
+  return getStudents().filter(s => s.days.includes(di));
+}
+
 function renderQuiz() {
   const date  = document.getElementById('quiz-date').value;
   const dayEl = document.getElementById('quiz-day');
@@ -2561,10 +2635,13 @@ function renderQuiz() {
     return;
   }
 
-  const di       = dayIdx(date);
-  const students = getStudents().filter(s => s.days.includes(di));
-
   listEl.innerHTML = tests.map(test => {
+    const students = getQuizTargets(test, date);
+    const isTargetSet = test.targetStudents && test.targetStudents.length > 0;
+    const targetLabel = isTargetSet
+      ? `<span class="quiz-target-summary" onclick="openQuizTargetModal('${test.id}')">対象者 ${students.length}名 ✏️ 編集</span>`
+      : `<span class="quiz-target-unset" onclick="openQuizTargetModal('${test.id}')">＋ 対象者を設定（現在はその日の全生徒）</span>`;
+
     const scores  = _db.quizScores.filter(sc => sc.testId === test.id);
     let passCnt = 0, failCnt = 0, noneCnt = 0;
     students.forEach(s => {
@@ -2589,7 +2666,7 @@ function renderQuiz() {
           <span style="font-size:.8rem;color:var(--muted);">/ ${test.maxScore}</span>
           <span class="quiz-badge ${badgeCls}">${badgeTxt}</span>
         </div>`;
-    }).join('') : '<div style="padding:12px 14px;color:var(--muted);font-size:.85rem;">この日に登録されている生徒がいません</div>';
+    }).join('') : '<div style="padding:12px 14px;color:var(--muted);font-size:.85rem;">対象者が登録されていません</div>';
 
     return `
       <div class="quiz-test-card">
@@ -2597,6 +2674,7 @@ function renderQuiz() {
           <div>
             <div class="quiz-test-title">🧪 ${esc(test.title)}</div>
             <div class="quiz-test-meta">満点 ${test.maxScore}点　合格 ${test.passScore}点以上</div>
+            ${targetLabel}
             <div class="quiz-stats-row">
               <span class="quiz-stat-chip quiz-stat-pass">合格 ${passCnt}名</span>
               <span class="quiz-stat-chip quiz-stat-fail">不合格 ${failCnt}名</span>
@@ -2620,11 +2698,131 @@ async function addQuizTest() {
   if (pass > max) { toast('合格点は満点以下にしてください'); return; }
 
   const id = uid();
-  const { error } = await _supabase.from('quiz_tests').insert({ id, date, title, max_score: max, pass_score: pass });
+  const { error } = await _supabase.from('quiz_tests').insert({ id, date, title, max_score: max, pass_score: pass, target_students: [] });
   if (error) { toast('⚠️ 保存できませんでした'); return; }
-  _db.quizTests.push({ id, date, title, maxScore: max, passScore: pass });
+  _db.quizTests.push({ id, date, title, maxScore: max, passScore: pass, targetStudents: [] });
   document.getElementById('quiz-title').value = '';
   toast(`「${title}」を追加しました`);
+  renderQuiz();
+  // 対象者設定モーダルを自動で開く
+  openQuizTargetModal(id);
+}
+
+// ────────────────────────────
+//  対象者設定モーダル
+// ────────────────────────────
+let _qtCtx = { testId: null, selected: new Set() };
+
+function openQuizTargetModal(testId) {
+  const test = _db.quizTests.find(t => t.id === testId);
+  if (!test) return;
+  _qtCtx.testId   = testId;
+  _qtCtx.selected = new Set(test.targetStudents || []);
+
+  document.getElementById('qt-test-name').textContent = `🧪 ${test.title}`;
+  document.getElementById('qt-search').value = '';
+  renderQuizTargetGrades();
+  renderQuizTargetStudents();
+  document.getElementById('quiz-target-modal').classList.add('open');
+}
+
+function closeQuizTargetModal() {
+  document.getElementById('quiz-target-modal').classList.remove('open');
+  _qtCtx = { testId: null, selected: new Set() };
+}
+
+function renderQuizTargetGrades() {
+  const el = document.getElementById('qt-grade-chips');
+  const allStudents = getStudents();
+  el.innerHTML = GRADES.map(g => {
+    const group = allStudents.filter(s => (s.grade || '') === g);
+    if (!group.length) return '';
+    const allSelected = group.every(s => _qtCtx.selected.has(s.id));
+    const anySelected = group.some(s => _qtCtx.selected.has(s.id));
+    const cls = allSelected ? 'active' : anySelected ? 'partial' : '';
+    return `<button class="grade-chip-btn ${cls}" onclick="toggleQuizTargetGrade('${g}')">${g}（${group.length}名）</button>`;
+  }).join('');
+
+  // グループボタンの active 状態を更新
+  ['小学生','中学生','高校生'].forEach(g => {
+    const prefix = g === '小学生' ? '小学' : g === '中学生' ? '中学' : '高校';
+    const grp    = allStudents.filter(s => (s.grade || '').startsWith(prefix));
+    const allSel = grp.length > 0 && grp.every(s => _qtCtx.selected.has(s.id));
+    const btns   = document.querySelectorAll('#quiz-target-modal .grade-chip-btn.group');
+    btns.forEach(b => { if (b.textContent === g) b.classList.toggle('active', allSel); });
+  });
+}
+
+function renderQuizTargetStudents() {
+  const q   = (document.getElementById('qt-search')?.value || '').trim();
+  const el  = document.getElementById('qt-student-list');
+  const allStudents = getStudents();
+  const filtered    = q ? allStudents.filter(s => s.name.includes(q)) : allStudents;
+
+  el.innerHTML = filtered.map(s => {
+    const checked  = _qtCtx.selected.has(s.id) ? 'checked' : '';
+    const gradeTag = s.grade ? `<span class="grade-tag">${esc(s.grade)}</span>` : '';
+    return `
+      <label class="target-student-row">
+        <input type="checkbox" ${checked} onchange="toggleQuizTargetStudent('${s.id}',this.checked)" />
+        <span style="font-weight:700;flex:1;">${esc(s.name)}</span>
+        ${gradeTag}
+      </label>`;
+  }).join('');
+
+  document.getElementById('qt-count').textContent = `${_qtCtx.selected.size}名選択中`;
+}
+
+function toggleQuizTargetGrade(grade) {
+  const group = getStudents().filter(s => (s.grade || '') === grade);
+  const allSelected = group.every(s => _qtCtx.selected.has(s.id));
+  group.forEach(s => {
+    if (allSelected) _qtCtx.selected.delete(s.id);
+    else _qtCtx.selected.add(s.id);
+  });
+  renderQuizTargetGrades();
+  renderQuizTargetStudents();
+}
+
+function toggleQuizTargetGroup(groupName) {
+  const prefix = groupName === '小学生' ? '小学' : groupName === '中学生' ? '中学' : '高校';
+  const group  = getStudents().filter(s => (s.grade || '').startsWith(prefix));
+  const allSelected = group.length > 0 && group.every(s => _qtCtx.selected.has(s.id));
+  group.forEach(s => {
+    if (allSelected) _qtCtx.selected.delete(s.id);
+    else _qtCtx.selected.add(s.id);
+  });
+  renderQuizTargetGrades();
+  renderQuizTargetStudents();
+}
+
+function toggleQuizTargetStudent(studentId, checked) {
+  if (checked) _qtCtx.selected.add(studentId);
+  else _qtCtx.selected.delete(studentId);
+  document.getElementById('qt-count').textContent = `${_qtCtx.selected.size}名選択中`;
+  renderQuizTargetGrades();
+}
+
+function selectAllQuizTargets() {
+  getStudents().forEach(s => _qtCtx.selected.add(s.id));
+  renderQuizTargetGrades();
+  renderQuizTargetStudents();
+}
+
+function clearAllQuizTargets() {
+  _qtCtx.selected.clear();
+  renderQuizTargetGrades();
+  renderQuizTargetStudents();
+}
+
+async function saveQuizTargets() {
+  const ids = [..._qtCtx.selected];
+  const { error } = await _supabase.from('quiz_tests').update({ target_students: ids }).eq('id', _qtCtx.testId);
+  if (error) { toast('⚠️ 保存できませんでした'); return; }
+  const test = _db.quizTests.find(t => t.id === _qtCtx.testId);
+  if (test) test.targetStudents = ids;
+  toast(`対象者を ${ids.length}名 に設定しました`);
+  closeQuizTargetModal();
   renderQuiz();
 }
 
@@ -3614,7 +3812,7 @@ async function loadAllData() {
   _db.templates   = tplRow ? JSON.parse(tplRow.value) : {};
   _db.homework    = (hw.data || []).map(r => ({ id: r.id, studentId: r.student_id, date: r.date, status: r.status || null, memo: r.memo || undefined }));
   _db.holidays    = (hl.data || []).map(r => ({ id: r.id, date: r.date, memo: r.memo || '' }));
-  _db.quizTests   = (qt.data || []).map(r => ({ id: r.id, date: r.date, title: r.title, maxScore: r.max_score, passScore: r.pass_score }));
+  _db.quizTests   = (qt.data || []).map(r => ({ id: r.id, date: r.date, title: r.title, maxScore: r.max_score, passScore: r.pass_score, targetStudents: r.target_students || [] }));
   _db.quizScores  = (qs.data || []).map(r => ({ id: r.id, testId: r.test_id, studentId: r.student_id, score: r.score }));
 }
 
@@ -3755,6 +3953,10 @@ document.getElementById('template-modal').addEventListener('click', function(e) 
 document.getElementById('makeup-modal').addEventListener('click', function(e) {
   if (e.target === this) closeMakeupModal();
 });
+document.getElementById('quiz-target-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeQuizTargetModal();
+});
+
 document.getElementById('timememo-modal').addEventListener('click', function(e) {
   if (e.target === this) {
     document.getElementById('timememo-modal').classList.remove('open');
