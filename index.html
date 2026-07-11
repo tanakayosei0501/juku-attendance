@@ -870,6 +870,56 @@
     }
     #migration-banner.hidden { display: none; }
 
+    /* ── 宿題忘れ自習ステータス ── */
+    .status-btn[data-s="宿題忘れ自習"] { border-color: #7c3aed; color: #7c3aed; font-size:.72rem; padding:8px 6px; min-width:54px; }
+    .status-btn.active[data-s="宿題忘れ自習"] { background: #7c3aed; color: #fff; }
+    .dot-jishu { background: #7c3aed; }
+
+    /* ── 宿題忘れアラート ── */
+    .hw-forgot-alert {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: #fef3c7; border: 1.5px solid #f59e0b; color: #92400e;
+      border-radius: 20px; padding: 3px 10px; font-size: .72rem; font-weight: 800;
+      white-space: nowrap;
+    }
+    .hw-forgot-card { background: #fffbeb; border: 2px solid #fbbf24; border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+    .hw-forgot-card-title { font-size: .9rem; font-weight: 800; color: #92400e; margin-bottom: 10px; }
+    .hw-forgot-item { padding: 6px 0; border-bottom: 1px solid #fde68a; font-size: .88rem; font-weight: 700; }
+    .hw-forgot-item:last-child { border-bottom: none; }
+
+    /* ── 小テスト ── */
+    .quiz-test-card {
+      border: 1.5px solid var(--border); border-radius: 10px; margin-bottom: 12px; overflow: hidden;
+    }
+    .quiz-test-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px 14px; background: #f8faff; cursor: pointer; gap: 8px; flex-wrap: wrap;
+    }
+    .quiz-test-title  { font-weight: 800; font-size: .95rem; }
+    .quiz-test-meta   { font-size: .78rem; color: var(--muted); }
+    .quiz-score-row   {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      padding: 10px 14px; border-top: 1px solid var(--border);
+      transition: background .1s;
+    }
+    .quiz-score-row:last-child { border-bottom: none; }
+    .quiz-score-name  { flex: 1; min-width: 120px; font-weight: 700; font-size: .9rem; }
+    .quiz-score-input {
+      width: 72px; padding: 7px 10px; border: 1.5px solid var(--border); border-radius: 8px;
+      font-size: .95rem; font-family: inherit; text-align: center; background: #fff; color: var(--text);
+      transition: border-color .15s;
+    }
+    .quiz-score-input:focus { outline: none; border-color: var(--primary); }
+    .quiz-badge        { padding: 4px 10px; border-radius: 20px; font-size: .78rem; font-weight: 800; white-space: nowrap; }
+    .quiz-badge-pass   { background: #d1fae5; color: #065f46; }
+    .quiz-badge-fail   { background: #fee2e2; color: #991b1b; }
+    .quiz-badge-none   { background: #f1f5f9; color: #8d99ae; }
+    .quiz-stats-row    { display: flex; gap: 10px; flex-wrap: wrap; font-size: .8rem; font-weight: 700; margin: 10px 0 0; }
+    .quiz-stat-chip    { padding: 3px 10px; border-radius: 20px; }
+    .quiz-stat-pass    { background: #d1fae5; color: #065f46; }
+    .quiz-stat-fail    { background: #fee2e2; color: #991b1b; }
+    .quiz-stat-none    { background: #f1f5f9; color: #64748b; }
+
     /* ── 休講日バナー ── */
     .holiday-banner {
       background: linear-gradient(135deg, #fef3c7, #fde68a);
@@ -1070,6 +1120,7 @@
   <button class="tab-btn active" onclick="switchTab(this,'today')">📅 今日</button>
   <button class="tab-btn" onclick="switchTab(this,'attendance')">📋 出席記録</button>
   <button class="tab-btn" onclick="switchTab(this,'homework')">📝 宿題</button>
+  <button class="tab-btn" onclick="switchTab(this,'quiz')">🧪 小テスト</button>
   <button class="tab-btn" onclick="switchTab(this,'students')">👤 生徒管理</button>
   <button class="tab-btn" onclick="switchTab(this,'report')">📊 集計</button>
 </nav>
@@ -1111,6 +1162,8 @@
       <div class="card-title">📅 振替リスト</div>
       <div id="makeup-list"></div>
     </div>
+
+    <div id="hw-forgot-card" style="display:none"></div>
 
     <div class="card" id="follow-card">
       <div class="follow-card-header">
@@ -1249,6 +1302,33 @@
       <div class="table-wrap"><div id="report-table"></div></div>
     </div>
 
+  </div>
+
+  <!-- ── 小テスト ── -->
+  <div id="tab-quiz" class="tab-panel">
+    <div class="card">
+      <div class="date-row">
+        <div class="form-group">
+          <label>日付</label>
+          <input type="date" id="quiz-date" onchange="renderQuiz()" />
+        </div>
+        <button class="btn btn-outline today-btn" onclick="setQuizToday()">今日</button>
+        <div class="day-chip" id="quiz-day">---</div>
+      </div>
+      <div class="card-title" style="margin-top:14px">テストを追加</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+        <input type="text" id="quiz-title" placeholder="テスト名（例：英単語テスト①）" maxlength="40"
+               style="flex:3;min-width:180px;padding:11px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:.95rem;font-family:inherit;background:#fff;color:var(--text);" />
+        <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;font-weight:700;flex-shrink:0;">
+          満点<input type="number" id="quiz-max" value="100" min="1" style="width:68px;padding:10px 8px;border:1.5px solid var(--border);border-radius:8px;font-size:.9rem;font-family:inherit;text-align:center;" />
+        </label>
+        <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;font-weight:700;flex-shrink:0;">
+          合格<input type="number" id="quiz-pass" value="60" min="0" style="width:68px;padding:10px 8px;border:1.5px solid var(--border);border-radius:8px;font-size:.9rem;font-family:inherit;text-align:center;" />
+        </label>
+        <button class="btn btn-primary" onclick="addQuizTest()" style="flex-shrink:0;">追加</button>
+      </div>
+    </div>
+    <div id="quiz-list"></div>
   </div>
 
   <!-- ── 宿題管理 ── -->
@@ -1522,14 +1602,14 @@ const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 // ════════════════════════════
 const LBK = 'juku_last_backup';
 const DAYS    = ['月','火','水','木','金','土','日'];
-const STATUSES = ['出席','欠席','遅刻','早退'];
+const STATUSES = ['出席','欠席','遅刻','早退','宿題忘れ自習'];
 const GRADES  = ['小学1年生','小学2年生','小学3年生','小学4年生','小学5年生','小学6年生',
                   '中学1年生','中学2年生','中学3年生','高校1年生','高校2年生','高校3年生'];
 
 // ════════════════════════════
 //  インメモリキャッシュ（Supabase から起動時にロード）
 // ════════════════════════════
-const _db = { students: [], attendance: [], makeups: [], templates: {}, homework: [], holidays: [] };
+const _db = { students: [], attendance: [], makeups: [], templates: {}, homework: [], holidays: [], quizTests: [], quizScores: [] };
 
 // ════════════════════════════
 //  データアクセス（キャッシュ読み書き）
@@ -1677,6 +1757,7 @@ function switchTab(btn, name) {
   if (name === 'today')      renderToday();
   if (name === 'attendance') renderAtt();
   if (name === 'homework')   renderHomework();
+  if (name === 'quiz')       renderQuiz();
   if (name === 'report')     { renderMonthly(); renderReport(); }
 }
 
@@ -1937,7 +2018,7 @@ async function deleteMakeup(id) {
 // ════════════════════════════
 //  フォローリスト
 // ════════════════════════════
-const DOT_CLASS = { '出席':'dot-present','欠席':'dot-absent','遅刻':'dot-late','早退':'dot-early' };
+const DOT_CLASS = { '出席':'dot-present','欠席':'dot-absent','遅刻':'dot-late','早退':'dot-early','宿題忘れ自習':'dot-jishu' };
 
 function computeFollowList() {
   const students = getStudents();
@@ -2041,7 +2122,7 @@ function renderToday() {
 
   const gradeFilter = document.getElementById('today-grade-filter')?.value || '';
   const allStudents = getStudents().filter(s =>
-    s.days.includes(di) && (!gradeFilter || (s.grade || '') === gradeFilter)
+    s.days.includes(di) && gradeMatches(s.grade, gradeFilter)
   );
   const att = getAttendance();
 
@@ -2068,6 +2149,8 @@ function renderToday() {
       </div>
       <hr style="border:none;border-top:1px solid var(--border);margin:0 0 12px;">
       ${buildAttRows(allStudents, att, today)}`;
+    renderMakeupList();
+    renderHwForgotCard();
     renderFollowList();
     return;
   }
@@ -2077,6 +2160,7 @@ function renderToday() {
   const done       = allStudents.filter(s =>  att.some(a => a.date === today && a.studentId === s.id));
   listEl.innerHTML = buildAttRows([...unrecorded, ...done], att, today, 'today');
   renderMakeupList();
+  renderHwForgotCard();
   renderFollowList();
 }
 
@@ -2124,10 +2208,13 @@ function buildAttRows(students, att, date, context) {
     const gradeTag = s.grade
       ? `<span class="grade-tag">${esc(s.grade)}</span>` : '';
 
+    const hwForgotBadge = hasPrevWeekForgot(s.id, date)
+      ? `<span class="hw-forgot-alert">⚠️ 先週 宿題忘れ</span>` : '';
+
     return `
       <div class="attendance-row ${isUnrec ? 'att-unrecorded' : ''}">
         <div class="att-name-wrap">
-          <div class="att-name">${esc(s.name)} ${gradeTag}</div>
+          <div class="att-name">${esc(s.name)} ${gradeTag} ${hwForgotBadge}</div>
           ${metaHtml}
         </div>
         <div class="status-buttons">${btns}</div>
@@ -2272,7 +2359,7 @@ function renderHomework() {
   const allForDay = getStudents().filter(s => s.days.includes(di));
   let students    = allForDay;
   if (q)           students = students.filter(s => s.name.includes(q));
-  if (gradeFilter) students = students.filter(s => (s.grade || '') === gradeFilter);
+  if (gradeFilter) students = students.filter(s => gradeMatches(s.grade, gradeFilter));
 
   countEl.innerHTML = (q || gradeFilter)
     ? `<span>${students.length}名</span> / ${allForDay.length}名中` : '';
@@ -2402,6 +2489,189 @@ async function _autoUnsetHomeworkAbsent(studentId, date) {
 }
 
 // ════════════════════════════
+//  宿題忘れアラート
+// ════════════════════════════
+function prevWeekRange(dateStr) {
+  const d   = new Date(dateStr + 'T00:00:00');
+  const dow = (d.getDay() + 6) % 7; // 月=0..日=6
+  const thisMonday = new Date(d); thisMonday.setDate(d.getDate() - dow);
+  const lastMonday = new Date(thisMonday); lastMonday.setDate(thisMonday.getDate() - 7);
+  const lastSunday = new Date(thisMonday); lastSunday.setDate(thisMonday.getDate() - 1);
+  const fmt = x => x.toISOString().slice(0, 10);
+  return { start: fmt(lastMonday), end: fmt(lastSunday) };
+}
+
+function hasPrevWeekForgot(studentId, refDate) {
+  const { start, end } = prevWeekRange(refDate);
+  return _db.homework.some(h =>
+    h.studentId === studentId && h.status === '忘れ' &&
+    h.date >= start && h.date <= end
+  );
+}
+
+function getPrevWeekForgotStudents(refDate) {
+  const { start, end } = prevWeekRange(refDate);
+  const forgotIds = new Set(
+    _db.homework
+      .filter(h => h.status === '忘れ' && h.date >= start && h.date <= end)
+      .map(h => h.studentId)
+  );
+  return getStudents().filter(s => forgotIds.has(s.id));
+}
+
+function renderHwForgotCard() {
+  const el = document.getElementById('hw-forgot-card');
+  if (!el) return;
+  const today    = todayStr();
+  const students = getPrevWeekForgotStudents(today);
+  if (!students.length) { el.style.display = 'none'; return; }
+  el.style.display = '';
+  el.innerHTML = `
+    <div class="card hw-forgot-card">
+      <div class="hw-forgot-card-title">📚 宿題忘れ自習 対象者（今週）— ${students.length}名</div>
+      ${students.map(s => {
+        const gradeTag = s.grade ? `<span class="grade-tag">${esc(s.grade)}</span>` : '';
+        return `<div class="hw-forgot-item">${esc(s.name)} ${gradeTag}</div>`;
+      }).join('')}
+      <p style="font-size:.76rem;color:var(--muted);margin-top:8px;">
+        ※ 先週（${prevWeekRange(today).start}〜${prevWeekRange(today).end}）に宿題「忘れ」の記録がある生徒です。
+        出席記録で「宿題忘れ自習」として記録できます。
+      </p>
+    </div>`;
+}
+
+// ════════════════════════════
+//  小テスト
+// ════════════════════════════
+function setQuizToday() {
+  document.getElementById('quiz-date').value = todayStr();
+  renderQuiz();
+}
+
+function renderQuiz() {
+  const date  = document.getElementById('quiz-date').value;
+  const dayEl = document.getElementById('quiz-day');
+  const listEl = document.getElementById('quiz-list');
+  if (!date) { dayEl.textContent = '---'; listEl.innerHTML = '<div class="card"><div class="empty"><p>日付を選択してください</p></div></div>'; return; }
+  dayEl.textContent = DAYS[dayIdx(date)] + '曜日';
+
+  const tests = _db.quizTests.filter(t => t.date === date);
+  if (!tests.length) {
+    listEl.innerHTML = '<div class="card"><div class="empty"><div class="empty-icon">🧪</div><p>この日のテストはまだ登録されていません</p></div></div>';
+    return;
+  }
+
+  const di       = dayIdx(date);
+  const students = getStudents().filter(s => s.days.includes(di));
+
+  listEl.innerHTML = tests.map(test => {
+    const scores  = _db.quizScores.filter(sc => sc.testId === test.id);
+    let passCnt = 0, failCnt = 0, noneCnt = 0;
+    students.forEach(s => {
+      const sc = scores.find(x => x.studentId === s.id);
+      if (sc?.score == null) noneCnt++;
+      else if (sc.score >= test.passScore) passCnt++;
+      else failCnt++;
+    });
+
+    const rows = students.length ? students.map(s => {
+      const sc       = scores.find(x => x.studentId === s.id);
+      const val      = sc?.score != null ? sc.score : '';
+      const badgeCls = val === '' ? 'quiz-badge-none' : val >= test.passScore ? 'quiz-badge-pass' : 'quiz-badge-fail';
+      const badgeTxt = val === '' ? '未記録' : val >= test.passScore ? '✅ 合格' : '❌ 不合格';
+      const gradeTag = s.grade ? `<span class="grade-tag">${esc(s.grade)}</span>` : '';
+      return `
+        <div class="quiz-score-row">
+          <div class="quiz-score-name">${esc(s.name)} ${gradeTag}</div>
+          <input type="number" class="quiz-score-input" min="0" max="${test.maxScore}"
+                 value="${val}" placeholder="点数"
+                 onblur="saveQuizScore('${test.id}','${s.id}',this.value,'${test.passScore}',this)" />
+          <span style="font-size:.8rem;color:var(--muted);">/ ${test.maxScore}</span>
+          <span class="quiz-badge ${badgeCls}">${badgeTxt}</span>
+        </div>`;
+    }).join('') : '<div style="padding:12px 14px;color:var(--muted);font-size:.85rem;">この日に登録されている生徒がいません</div>';
+
+    return `
+      <div class="quiz-test-card">
+        <div class="quiz-test-header">
+          <div>
+            <div class="quiz-test-title">🧪 ${esc(test.title)}</div>
+            <div class="quiz-test-meta">満点 ${test.maxScore}点　合格 ${test.passScore}点以上</div>
+            <div class="quiz-stats-row">
+              <span class="quiz-stat-chip quiz-stat-pass">合格 ${passCnt}名</span>
+              <span class="quiz-stat-chip quiz-stat-fail">不合格 ${failCnt}名</span>
+              <span class="quiz-stat-chip quiz-stat-none">未記録 ${noneCnt}名</span>
+            </div>
+          </div>
+          <button class="btn btn-outline btn-sm" onclick="deleteQuizTest('${test.id}')">削除</button>
+        </div>
+        ${rows}
+      </div>`;
+  }).join('');
+}
+
+async function addQuizTest() {
+  const date  = document.getElementById('quiz-date').value;
+  const title = document.getElementById('quiz-title').value.trim();
+  const max   = parseInt(document.getElementById('quiz-max').value) || 100;
+  const pass  = parseInt(document.getElementById('quiz-pass').value) || 60;
+  if (!date)  { toast('日付を選択してください'); return; }
+  if (!title) { toast('テスト名を入力してください'); return; }
+  if (pass > max) { toast('合格点は満点以下にしてください'); return; }
+
+  const id = uid();
+  const { error } = await _supabase.from('quiz_tests').insert({ id, date, title, max_score: max, pass_score: pass });
+  if (error) { toast('⚠️ 保存できませんでした'); return; }
+  _db.quizTests.push({ id, date, title, maxScore: max, passScore: pass });
+  document.getElementById('quiz-title').value = '';
+  toast(`「${title}」を追加しました`);
+  renderQuiz();
+}
+
+async function deleteQuizTest(testId) {
+  const test = _db.quizTests.find(t => t.id === testId);
+  if (!test) return;
+  const { error } = await _supabase.from('quiz_tests').delete().eq('id', testId);
+  if (error) { toast('⚠️ 削除できませんでした'); return; }
+  _db.quizTests  = _db.quizTests.filter(t => t.id !== testId);
+  _db.quizScores = _db.quizScores.filter(s => s.testId !== testId);
+  toast(`「${test.title}」を削除しました`);
+  renderQuiz();
+}
+
+async function saveQuizScore(testId, studentId, rawVal, passScore, inputEl) {
+  const score = rawVal.trim() === '' ? null : parseInt(rawVal);
+  const existing = _db.quizScores.find(s => s.testId === testId && s.studentId === studentId);
+
+  const currentScore = existing?.score ?? null;
+  if (currentScore === score) return;
+
+  let error;
+  if (score === null && existing) {
+    ({ error } = await _supabase.from('quiz_scores').delete().eq('id', existing.id));
+    if (!error) _db.quizScores = _db.quizScores.filter(s => s.id !== existing.id);
+  } else if (existing) {
+    ({ error } = await _supabase.from('quiz_scores').update({ score }).eq('id', existing.id));
+    if (!error) existing.score = score;
+  } else if (score !== null) {
+    const id = uid();
+    ({ error } = await _supabase.from('quiz_scores').insert({ id, test_id: testId, student_id: studentId, score }));
+    if (!error) _db.quizScores.push({ id, testId, studentId, score });
+  }
+  if (error) { toast('⚠️ 保存できませんでした'); return; }
+
+  // バッジだけ更新（再描画でフォーカスを奪わない）
+  const row    = inputEl.closest('.quiz-score-row');
+  const badge  = row?.querySelector('.quiz-badge');
+  if (badge) {
+    const ps = parseInt(passScore);
+    if (score === null) { badge.className = 'quiz-badge quiz-badge-none'; badge.textContent = '未記録'; }
+    else if (score >= ps) { badge.className = 'quiz-badge quiz-badge-pass'; badge.textContent = '✅ 合格'; }
+    else { badge.className = 'quiz-badge quiz-badge-fail'; badge.textContent = '❌ 不合格'; }
+  }
+}
+
+// ════════════════════════════
 //  休講日管理
 // ════════════════════════════
 function holidayBannerHTML(holiday) {
@@ -2490,7 +2760,22 @@ function initGradeFilter(id) {
   const el = document.getElementById(id);
   if (!el) return;
   el.innerHTML = '<option value="">全学年</option>'
-    + GRADES.map(g => `<option value="${g}">${g}</option>`).join('');
+    + '<optgroup label="まとめ">'
+    + '<option value="group:小学生">小学生（全学年）</option>'
+    + '<option value="group:中学生">中学生（全学年）</option>'
+    + '<option value="group:高校生">高校生（全学年）</option>'
+    + '</optgroup>'
+    + '<optgroup label="学年別">'
+    + GRADES.map(g => `<option value="${g}">${g}</option>`).join('')
+    + '</optgroup>';
+}
+
+function gradeMatches(grade, filter) {
+  if (!filter) return true;
+  if (filter === 'group:小学生') return (grade || '').startsWith('小学');
+  if (filter === 'group:中学生') return (grade || '').startsWith('中学');
+  if (filter === 'group:高校生') return (grade || '').startsWith('高校');
+  return (grade || '') === filter;
 }
 
 // ════════════════════════════
@@ -2552,7 +2837,7 @@ function renderStudents() {
 
   if (_searchQ)          list = list.filter(s => s.name.includes(_searchQ));
   if (_filterDays.size > 0) list = list.filter(s => s.days.some(d => _filterDays.has(d)));
-  if (gradeFilter)       list = list.filter(s => (s.grade || '') === gradeFilter);
+  if (gradeFilter)       list = list.filter(s => gradeMatches(s.grade, gradeFilter));
 
   const countEl = document.getElementById('search-count');
   if (countEl) {
@@ -2872,7 +3157,7 @@ function renderMonthly() {
   const end     = `${month}-${String(lastDay).padStart(2,'0')}`;
 
   let students = getStudents();
-  if (gradeFilter) students = students.filter(s => (s.grade || '') === gradeFilter);
+  if (gradeFilter) students = students.filter(s => gradeMatches(s.grade, gradeFilter));
 
   const holidayDates = new Set(_db.holidays.map(h => h.date));
   const att = getAttendance().filter(a => a.date >= start && a.date <= end && !holidayDates.has(a.date));
@@ -2884,9 +3169,9 @@ function renderMonthly() {
 
   const rows = students.map(s => {
     const recs = att.filter(a => a.studentId === s.id);
-    const cnt  = { '出席':0, '遅刻':0, '早退':0, '欠席':0 };
+    const cnt  = { '出席':0, '遅刻':0, '早退':0, '欠席':0, '宿題忘れ自習':0 };
     recs.forEach(r => { if (r.status in cnt) cnt[r.status]++; });
-    const koma = cnt['出席'] + cnt['遅刻'] + cnt['早退'];
+    const koma = cnt['出席'] + cnt['遅刻'] + cnt['早退'] + cnt['宿題忘れ自習'];
     return { s, cnt, koma };
   });
 
@@ -2976,7 +3261,7 @@ function renderReport() {
   const gradeFilter= document.getElementById('r-grade')?.value || '';
 
   let students = getStudents();
-  if (gradeFilter) students = students.filter(s => (s.grade || '') === gradeFilter);
+  if (gradeFilter) students = students.filter(s => gradeMatches(s.grade, gradeFilter));
 
   const holidayDatesRep = new Set(_db.holidays.map(h => h.date));
   let att = getAttendance().filter(a => !holidayDatesRep.has(a.date));
@@ -3312,21 +3597,25 @@ function hideLoading() {
 //  Supabase データロード
 // ════════════════════════════
 async function loadAllData() {
-  const [s, a, m, t, hw, hl] = await Promise.all([
+  const [s, a, m, t, hw, hl, qt, qs] = await Promise.all([
     _supabase.from('students').select('*').order('created_at'),
     _supabase.from('attendance').select('*'),
     _supabase.from('makeups').select('*'),
     _supabase.from('settings').select('*'),
     _supabase.from('homework').select('*'),
-    _supabase.from('holidays').select('*').order('date')
+    _supabase.from('holidays').select('*').order('date'),
+    _supabase.from('quiz_tests').select('*').order('date'),
+    _supabase.from('quiz_scores').select('*')
   ]);
-  _db.students   = (s.data || []).map(r => ({ id: r.id, name: r.name, grade: r.grade || '', days: r.days || [] }));
-  _db.attendance = (a.data || []).map(r => ({ id: r.id, date: r.date, studentId: r.student_id, status: r.status, time: r.time || undefined, memo: r.memo || undefined }));
-  _db.makeups    = (m.data || []).map(r => ({ id: r.id, studentId: r.student_id, originalDate: r.original_date, makeupDate: r.makeup_date || undefined, memo: r.memo || undefined, done: r.done }));
-  const tplRow   = (t.data || []).find(r => r.key === 'templates');
-  _db.templates  = tplRow ? JSON.parse(tplRow.value) : {};
-  _db.homework   = (hw.data || []).map(r => ({ id: r.id, studentId: r.student_id, date: r.date, status: r.status || null, memo: r.memo || undefined }));
-  _db.holidays   = (hl.data || []).map(r => ({ id: r.id, date: r.date, memo: r.memo || '' }));
+  _db.students    = (s.data || []).map(r => ({ id: r.id, name: r.name, grade: r.grade || '', days: r.days || [] }));
+  _db.attendance  = (a.data || []).map(r => ({ id: r.id, date: r.date, studentId: r.student_id, status: r.status, time: r.time || undefined, memo: r.memo || undefined }));
+  _db.makeups     = (m.data || []).map(r => ({ id: r.id, studentId: r.student_id, originalDate: r.original_date, makeupDate: r.makeup_date || undefined, memo: r.memo || undefined, done: r.done }));
+  const tplRow    = (t.data || []).find(r => r.key === 'templates');
+  _db.templates   = tplRow ? JSON.parse(tplRow.value) : {};
+  _db.homework    = (hw.data || []).map(r => ({ id: r.id, studentId: r.student_id, date: r.date, status: r.status || null, memo: r.memo || undefined }));
+  _db.holidays    = (hl.data || []).map(r => ({ id: r.id, date: r.date, memo: r.memo || '' }));
+  _db.quizTests   = (qt.data || []).map(r => ({ id: r.id, date: r.date, title: r.title, maxScore: r.max_score, passScore: r.pass_score }));
+  _db.quizScores  = (qs.data || []).map(r => ({ id: r.id, testId: r.test_id, studentId: r.student_id, score: r.score }));
 }
 
 // ════════════════════════════
@@ -3431,6 +3720,9 @@ async function continueInit() {
   initGradeFilter('hw-grade');
   document.getElementById('hw-date').value = todayStr();
   renderHolidayList();
+
+  // 小テストタブの初期化
+  document.getElementById('quiz-date').value = todayStr();
 
   updateBackupInfo();
   renderStudents();
