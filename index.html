@@ -190,7 +190,8 @@
     .student-item:last-child { border-bottom: none; }
     .student-info { flex: 1; min-width: 0; }
     .student-name { font-weight: 800; font-size: 1rem; }
-    .student-days { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 5px; }
+    .student-days { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 5px; align-items: center; }
+    .school-badge { font-size: .72rem; font-weight: 700; color: var(--muted); background: #f0f4f8; border: 1px solid var(--border); border-radius: 6px; padding: 2px 7px; white-space: nowrap; }
     .day-badge {
       padding: 2px 9px;
       border-radius: 20px;
@@ -3590,11 +3591,14 @@ function renderStudents() {
       const cls = d === 5 ? 'sat' : d === 6 ? 'sun' : '';
       return `<span class="day-badge ${cls}">${DAYS[d]}</span>`;
     }).join('');
+    const schoolName = (_db.studentProfiles.find(p => p.studentId === s.id) || {}).schoolName || '';
+    const schoolBadge = schoolName
+      ? `<span class="school-badge">🏫 ${esc(schoolName)}</span>` : '';
     return `
       <div class="student-item">
         <div class="student-info">
           <div class="student-name">${esc(s.name)} ${gradeBadge}</div>
-          <div class="student-days">${badges}</div>
+          <div class="student-days">${badges}${schoolBadge}</div>
         </div>
         <div class="student-actions">
           <button class="btn btn-primary btn-sm" onclick="openKarte('${s.id}')">📋 カルテ</button>
