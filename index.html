@@ -2636,6 +2636,40 @@ async function _autoUnsetHomeworkAbsent(studentId, date) {
 let _karteStudentId = null;
 let _karteEditMode  = { basic: false, learning: false, notes: false };
 
+function handleKartePhotoSelect(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = new Image();
+    img.onload = function() {
+      const MAX = 400;
+      let w = img.width, h = img.height;
+      if (w > h) { if (w > MAX) { h = Math.round(h * MAX / w); w = MAX; } }
+      else       { if (h > MAX) { w = Math.round(w * MAX / h); h = MAX; } }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.78);
+      document.getElementById('ke-photo').value = dataUrl;
+      document.getElementById('karte-av-edit').innerHTML =
+        `<img src="${dataUrl}" style="width:100%;height:100%;object-fit:cover;border-radius:50%" />`;
+      const del = document.getElementById('karte-photo-del-btn');
+      if (del) del.style.display = '';
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function deleteKartePhoto() {
+  document.getElementById('ke-photo').value = '';
+  const s = getStudents().find(x => x.id === _karteStudentId);
+  document.getElementById('karte-av-edit').textContent = s ? (s.name[0]||'?') : '?';
+  const del = document.getElementById('karte-photo-del-btn');
+  if (del) del.style.display = 'none';
+}
+
 function openKarte(studentId) {
   _karteStudentId = studentId;
   _karteEditMode  = { basic: false, learning: false, notes: false };
@@ -2698,9 +2732,13 @@ function karteBasicHTML(s, p) {
           ${p.photoUrl ? `<img src="${esc(p.photoUrl)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%" onerror="this.style.display='none'" />` : esc(s.name[0]||'?')}
         </div>
         <div style="flex:1;">
-          <div style="font-size:.75rem;font-weight:800;color:var(--muted);margin-bottom:3px;">写真URL（任意）</div>
-          <input class="karte-edit-input" id="ke-photo" value="${esc(p.photoUrl||'')}" placeholder="https://..." style="max-width:340px;"
-            oninput="const av=document.getElementById('karte-av-edit');av.innerHTML=this.value?'<img src=\\''+this.value+'\\' style=\\'width:100%;height:100%;object-fit:cover;border-radius:50%\\' />':'${esc(s.name[0]||'?')}'" />
+          <input type="hidden"  id="ke-photo" value="${esc(p.photoUrl||'')}" />
+          <input type="file"    id="ke-photo-file" accept="image/*" style="display:none" onchange="handleKartePhotoSelect(this)" />
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
+            <button class="btn btn-outline" type="button" onclick="document.getElementById('ke-photo-file').click()" style="font-size:.88rem;">📷 写真を選ぶ・撮影</button>
+            <button class="btn btn-outline" type="button" id="karte-photo-del-btn" onclick="deleteKartePhoto()" style="font-size:.88rem;color:var(--absent);border-color:var(--absent);${p.photoUrl?'':'display:none'}">🗑 削除</button>
+          </div>
+          <div style="font-size:.72rem;color:var(--muted);">JPG・PNG・HEIC可。自動でリサイズ＆圧縮されます。</div>
         </div>
       </div>
       <div class="karte-field-grid">
