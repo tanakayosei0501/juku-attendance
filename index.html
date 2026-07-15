@@ -48,6 +48,10 @@
       z-index: 50;
     }
     .header h1 { font-size: 1.25rem; font-weight: 800; letter-spacing: .02em; }
+    .branch-bar { width: 100%; display: flex; gap: 6px; align-items: center; padding-top: 8px; margin-top: 4px; border-top: 1px solid rgba(255,255,255,.2); flex-wrap: wrap; }
+    .branch-bar-label { font-size: .75rem; font-weight: 700; color: rgba(255,255,255,.7); white-space: nowrap; }
+    .branch-btn { padding: 5px 16px; border-radius: 20px; border: 1.5px solid rgba(255,255,255,.35); background: transparent; color: rgba(255,255,255,.75); font-size: .82rem; font-weight: 700; cursor: pointer; font-family: inherit; transition: all .15s; white-space: nowrap; }
+    .branch-btn.active { background: rgba(255,255,255,.22); color: #fff; border-color: rgba(255,255,255,.9); }
 
     /* ── タブ ── */
     .tabs {
@@ -1177,13 +1181,18 @@
 </head>
 <body>
 
-<header class="header">
+<header class="header" style="flex-wrap:wrap;">
   <a href="https://juku-dashboard-sigma.vercel.app/" style="display:flex;align-items:center;gap:4px;color:rgba(255,255,255,.85);font-size:.78rem;font-weight:700;text-decoration:none;background:rgba(255,255,255,.12);border:1.5px solid rgba(255,255,255,.28);border-radius:7px;padding:5px 10px;white-space:nowrap;flex-shrink:0;">← ポータル</a>
   <span style="font-size:1.5rem">📚</span>
   <h1>塾出席管理</h1>
   <div style="margin-left:auto;display:flex;gap:8px;">
     <button onclick="openSettings()" style="background:rgba(255,255,255,.15);border:1.5px solid rgba(255,255,255,.35);color:#fff;border-radius:8px;padding:7px 12px;font-size:.85rem;font-weight:700;cursor:pointer;font-family:inherit;">⚙️ 設定</button>
     <button onclick="doLogout()" id="logout-btn" style="background:rgba(255,255,255,.1);border:1.5px solid rgba(255,255,255,.3);color:rgba(255,255,255,.85);border-radius:8px;padding:7px 12px;font-size:.85rem;font-weight:700;cursor:pointer;font-family:inherit;">🚪</button>
+  </div>
+  <div class="branch-bar">
+    <span class="branch-bar-label">校舎：</span>
+    <button class="branch-btn" data-branch="鶴瀬東校舎" onclick="setBranch('鶴瀬東校舎')">🏫 鶴瀬東校舎</button>
+    <button class="branch-btn" data-branch="羽沢校舎"   onclick="setBranch('羽沢校舎')">🏫 羽沢校舎</button>
   </div>
 </header>
 
@@ -1751,6 +1760,9 @@ const DAYS    = ['月','火','水','木','金','土','日'];
 const STATUSES = ['出席','欠席','遅刻','早退','宿題忘れ自習'];
 const GRADES  = ['小学1年生','小学2年生','小学3年生','小学4年生','小学5年生','小学6年生',
                   '中学1年生','中学2年生','中学3年生','高校1年生','高校2年生','高校3年生'];
+const BRANCHES  = ['鶴瀬東校舎', '羽沢校舎'];
+const BRANCH_KEY = 'juku_branch';
+let _currentBranch = localStorage.getItem(BRANCH_KEY) || '鶴瀬東校舎';
 
 // ════════════════════════════
 //  インメモリキャッシュ（Supabase から起動時にロード）
@@ -1760,8 +1772,9 @@ const _db = { students: [], attendance: [], makeups: [], templates: {}, homework
 // ════════════════════════════
 //  データアクセス（キャッシュ読み書き）
 // ════════════════════════════
-const getStudents    = () => _db.students;
+const getStudents    = () => _db.students.filter(s => s.branch === _currentBranch);
 const saveStudents   = v  => { _db.students   = v; };
+function getHolidays() { return _db.holidays.filter(h => h.branch === _currentBranch); }
 const getAttendance  = () => _db.attendance;
 const saveAttendance = v  => { _db.attendance = v; };
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2);
@@ -2168,7 +2181,7 @@ const DOT_CLASS = { '出席':'dot-present','欠席':'dot-absent','遅刻':'dot-l
 
 function computeFollowList() {
   const students = getStudents();
-  const holidaySet = new Set(_db.holidays.map(h => h.date));
+  const holidaySet = new Set(getHolidays().map(h => h.date));
   const att      = getAttendance().filter(a => !holidaySet.has(a.date));
   const results  = [];
 
@@ -2258,7 +2271,7 @@ function renderToday() {
 
   const listEl = document.getElementById('today-list');
 
-  const holiday = _db.holidays.find(h => h.date === today);
+  const holiday = getHolidays().find(h => h.date === today);
   if (holiday) {
     document.getElementById('today-progress-fill').style.width = '0%';
     document.getElementById('today-counter-text').textContent = '';
@@ -2491,7 +2504,7 @@ function renderHomework() {
   const di = dayIdx(date);
   dayEl.textContent = DAYS[di] + '曜日';
 
-  const holiday = _db.holidays.find(h => h.date === date);
+  const holiday = getHolidays().find(h => h.date === date);
   if (holiday) {
     summEl.innerHTML  = '';
     countEl.innerHTML = '';
@@ -2672,6 +2685,21 @@ function deleteKartePhoto() {
   document.getElementById('karte-av-edit').textContent = s ? (s.name[0]||'?') : '?';
   const del = document.getElementById('karte-photo-del-btn');
   if (del) del.style.display = 'none';
+}
+
+function setBranch(branch) {
+  _currentBranch = branch;
+  localStorage.setItem(BRANCH_KEY, branch);
+  document.querySelectorAll('.branch-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.branch === branch);
+  });
+  renderToday();
+  renderStudents();
+  renderHolidayList();
+  renderMonthly(); renderReport();
+  renderAtt();
+  renderHomework();
+  renderQuiz();
 }
 
 function openKarte(studentId) {
@@ -2957,7 +2985,7 @@ async function deleteKarteTest(id) {
 // ─ ③ 塾での記録（自動集計）─
 function karteJukuRecordsHTML(s) {
   const sid        = s.id;
-  const holidaySet = new Set(_db.holidays.map(h => h.date));
+  const holidaySet = new Set(getHolidays().map(h => h.date));
   const attRecs    = _db.attendance.filter(a => a.studentId === sid && !holidaySet.has(a.date))
                        .sort((a,b) => b.date.localeCompare(a.date));
   const totalAtt   = attRecs.length;
@@ -3456,7 +3484,7 @@ function holidayBannerHTML(holiday) {
 function renderHolidayList() {
   const el = document.getElementById('holiday-list');
   if (!el) return;
-  const list = [..._db.holidays].sort((a,b) => a.date.localeCompare(b.date));
+  const list = [...getHolidays()].sort((a,b) => a.date.localeCompare(b.date));
   if (!list.length) {
     el.innerHTML = '<div class="empty"><p>登録された休講日はありません</p></div>';
     return;
@@ -3483,13 +3511,13 @@ async function addHoliday() {
   const memo   = memoEl.value.trim();
 
   if (!date) { toast('日付を選択してください'); return; }
-  if (_db.holidays.some(h => h.date === date)) { toast('すでに登録されている日付です'); return; }
+  if (getHolidays().some(h => h.date === date)) { toast('すでに登録されている日付です'); return; }
 
   const id = uid();
-  const { error } = await _supabase.from('holidays').insert({ id, date, memo: memo || null });
+  const { error } = await _supabase.from('holidays').insert({ id, date, memo: memo || null, branch: _currentBranch });
   if (error) { toast('⚠️ 保存できませんでした'); return; }
 
-  _db.holidays.push({ id, date, memo });
+  _db.holidays.push({ id, date, memo, branch: _currentBranch });
   _db.holidays.sort((a,b) => a.date.localeCompare(b.date));
   dateEl.value = '';
   memoEl.value = '';
@@ -3658,9 +3686,9 @@ async function addStudent() {
   if (!days.length) { toast('曜日を1つ以上選んでください'); return; }
   const grade = document.getElementById('s-grade').value;
   const id    = uid();
-  const { error } = await _supabase.from('students').insert({ id, name, grade: grade || '', days });
+  const { error } = await _supabase.from('students').insert({ id, name, grade: grade || '', days, branch: _currentBranch });
   if (error) { toast('⚠️ 保存できませんでした'); return; }
-  _db.students.push({ id, name, grade, days });
+  _db.students.push({ id, name, grade, days, branch: _currentBranch });
   document.getElementById('s-name').value = '';
   initGradeSelect('s-grade');
   buildDays('s-days', 's');
@@ -3732,7 +3760,7 @@ function renderAtt() {
   const di = dayIdx(date);
   dayEl.textContent = DAYS[di] + '曜日';
 
-  const holiday = _db.holidays.find(h => h.date === date);
+  const holiday = getHolidays().find(h => h.date === date);
   if (holiday) {
     listEl.innerHTML = holidayBannerHTML(holiday);
     return;
@@ -3933,7 +3961,7 @@ function renderMonthly() {
   let students = getStudents();
   if (gradeFilter) students = students.filter(s => gradeMatches(s.grade, gradeFilter));
 
-  const holidayDates = new Set(_db.holidays.map(h => h.date));
+  const holidayDates = new Set(getHolidays().map(h => h.date));
   const att = getAttendance().filter(a => a.date >= start && a.date <= end && !holidayDates.has(a.date));
 
   if (!students.length) {
@@ -4003,7 +4031,7 @@ function exportMonthlyCSV() {
   const label   = `${year}年${+mon}月`;
 
   const students = getStudents();
-  const holidayDatesCSV = new Set(_db.holidays.map(h => h.date));
+  const holidayDatesCSV = new Set(getHolidays().map(h => h.date));
   const att      = getAttendance().filter(a => a.date >= start && a.date <= end && !holidayDatesCSV.has(a.date));
 
   const header = ['生徒名', '学年', '出席', '遅刻', '早退', '欠席', 'コマ数'];
@@ -4037,7 +4065,7 @@ function renderReport() {
   let students = getStudents();
   if (gradeFilter) students = students.filter(s => gradeMatches(s.grade, gradeFilter));
 
-  const holidayDatesRep = new Set(_db.holidays.map(h => h.date));
+  const holidayDatesRep = new Set(getHolidays().map(h => h.date));
   let att = getAttendance().filter(a => !holidayDatesRep.has(a.date));
   if (startStr)         att = att.filter(a => a.date >= startStr);
   if (endStr)           att = att.filter(a => a.date <= endStr);
@@ -4103,7 +4131,7 @@ function exportCSV() {
 
   const studentList = getStudents();
   const sMap  = Object.fromEntries(studentList.map(s => [s.id, s]));
-  const holidayDatesExp = new Set(_db.holidays.map(h => h.date));
+  const holidayDatesExp = new Set(getHolidays().map(h => h.date));
   let att = getAttendance().filter(a => !holidayDatesExp.has(a.date));
   if (startStr)         att = att.filter(a => a.date >= startStr);
   if (endStr)           att = att.filter(a => a.date <= endStr);
@@ -4384,13 +4412,13 @@ async function loadAllData() {
     _supabase.from('student_tests').select('*').order('date', { ascending: false }),
     _supabase.from('student_consultations').select('*').order('date', { ascending: false })
   ]);
-  _db.students    = (s.data || []).map(r => ({ id: r.id, name: r.name, grade: r.grade || '', days: r.days || [] }));
+  _db.students    = (s.data || []).map(r => ({ id: r.id, name: r.name, grade: r.grade || '', days: r.days || [], branch: r.branch || '鶴瀬東校舎' }));
   _db.attendance  = (a.data || []).map(r => ({ id: r.id, date: r.date, studentId: r.student_id, status: r.status, time: r.time || undefined, memo: r.memo || undefined }));
   _db.makeups     = (m.data || []).map(r => ({ id: r.id, studentId: r.student_id, originalDate: r.original_date, makeupDate: r.makeup_date || undefined, memo: r.memo || undefined, done: r.done }));
   const tplRow    = (t.data || []).find(r => r.key === 'templates');
   _db.templates   = tplRow ? JSON.parse(tplRow.value) : {};
   _db.homework    = (hw.data || []).map(r => ({ id: r.id, studentId: r.student_id, date: r.date, status: r.status || null, memo: r.memo || undefined }));
-  _db.holidays    = (hl.data || []).map(r => ({ id: r.id, date: r.date, memo: r.memo || '' }));
+  _db.holidays    = (hl.data || []).map(r => ({ id: r.id, date: r.date, memo: r.memo || '', branch: r.branch || '鶴瀬東校舎' }));
   _db.quizTests   = (qt.data || []).map(r => ({ id: r.id, date: r.date, title: r.title, maxScore: r.max_score, passScore: r.pass_score, targetStudents: r.target_students || [] }));
   _db.quizScores  = (qs.data || []).map(r => ({ id: r.id, testId: r.test_id, studentId: r.student_id, score: r.score }));
   _db.studentProfiles      = (sp.data || []).map(r => ({ studentId: r.student_id, furigana: r.furigana||'', birthday: r.birthday||'', schoolName: r.school_name||'', enrolledDate: r.enrolled_date||'', siblingsMemo: r.siblings_memo||'', photoUrl: r.photo_url||'', subjects: r.subjects||'', targetSchool1: r.target_school1||'', targetSchool2: r.target_school2||'', goal: r.goal||'', strongSubjects: r.strong_subjects||'', weakSubjects: r.weak_subjects||'', naishinsho: r.naishinsho||'', personality: r.personality||'', healthNotes: r.health_notes||'', freeMemo: r.free_memo||'' }));
@@ -4505,6 +4533,10 @@ async function continueInit() {
   document.getElementById('quiz-date').value = todayStr();
 
   updateBackupInfo();
+  // 校舎セレクタの初期表示を反映
+  document.querySelectorAll('.branch-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.branch === _currentBranch);
+  });
   renderStudents();
   renderToday();
   renderMakeupList();
