@@ -875,6 +875,71 @@
     .status-btn.active[data-s="宿題忘れ自習"] { background: #7c3aed; color: #fff; }
     .dot-jishu { background: #7c3aed; }
 
+    /* ── 生徒カルテ ── */
+    .karte-overlay { z-index: 2000; }
+    .karte-panel {
+      position: fixed; inset: 0; background: var(--bg);
+      overflow-y: auto; display: flex; flex-direction: column;
+    }
+    .karte-header {
+      position: sticky; top: 0; z-index: 10;
+      background: var(--primary); color: #fff;
+      display: flex; align-items: center; gap: 12px;
+      padding: 14px 18px; box-shadow: 0 2px 8px rgba(0,0,0,.15);
+    }
+    .karte-back-btn {
+      background: rgba(255,255,255,.18); border: none; color: #fff;
+      border-radius: 8px; padding: 8px 14px; font-size: .88rem;
+      font-weight: 800; cursor: pointer; font-family: inherit; flex-shrink: 0;
+    }
+    .karte-header-name { font-size: 1.1rem; font-weight: 800; flex: 1; }
+    .karte-header-grade { font-size: .78rem; background: rgba(255,255,255,.2); padding: 3px 10px; border-radius: 20px; }
+    .karte-body { padding: 16px; max-width: 860px; margin: 0 auto; width: 100%; box-sizing: border-box; }
+    .karte-section { background: #fff; border-radius: 14px; padding: 20px; margin-bottom: 16px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+    .karte-section-title { font-size: 1rem; font-weight: 800; color: var(--primary); margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+    .karte-field-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+    .karte-field { display: flex; flex-direction: column; gap: 4px; }
+    .karte-field label { font-size: .75rem; font-weight: 800; color: var(--muted); }
+    .karte-field-val { font-size: .95rem; font-weight: 700; color: var(--text); min-height: 24px; word-break: break-all; }
+    .karte-field-val.karte-empty { color: var(--muted); font-weight: 400; font-size: .85rem; }
+    .karte-edit-input {
+      padding: 9px 12px; border: 1.5px solid var(--border); border-radius: 8px;
+      font-size: .9rem; font-family: inherit; background: #fff; color: var(--text); width: 100%; box-sizing: border-box;
+    }
+    .karte-edit-input:focus { outline: none; border-color: var(--primary); }
+    .karte-edit-textarea {
+      padding: 9px 12px; border: 1.5px solid var(--border); border-radius: 8px;
+      font-size: .9rem; font-family: inherit; background: #fff; color: var(--text);
+      width: 100%; resize: vertical; min-height: 72px; box-sizing: border-box;
+    }
+    .karte-edit-textarea:focus { outline: none; border-color: var(--primary); }
+    .karte-avatar {
+      width: 72px; height: 72px; border-radius: 50%; background: var(--primary);
+      color: #fff; font-size: 1.8rem; font-weight: 800;
+      display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+      overflow: hidden;
+    }
+    .karte-basic-top { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
+    .karte-stat-row { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+    .karte-stat-chip { padding: 8px 14px; border-radius: 10px; text-align: center; min-width: 72px; }
+    .karte-stat-chip .ks-num { font-size: 1.25rem; font-weight: 800; }
+    .karte-stat-chip .ks-lbl { font-size: .68rem; font-weight: 700; color: var(--muted); margin-top: 2px; }
+    .karte-stat-present { background: #d1fae5; }
+    .karte-stat-absent  { background: #fee2e2; }
+    .karte-stat-koma    { background: #e0e7ff; }
+    .karte-stat-hw      { background: #fef3c7; }
+    .karte-history-table { width: 100%; border-collapse: collapse; font-size: .85rem; }
+    .karte-history-table th { background: #f6f8fb; padding: 8px 10px; text-align: left; font-weight: 800; border-bottom: 2px solid var(--border); }
+    .karte-history-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .karte-history-table tr:last-child td { border-bottom: none; }
+    .karte-add-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: flex-end; }
+    .karte-add-input { padding: 9px 12px; border: 1.5px solid var(--border); border-radius: 8px; font-size: .88rem; font-family: inherit; background: #fff; color: var(--text); box-sizing: border-box; }
+    .karte-add-input:focus { outline: none; border-color: var(--primary); }
+    @media (max-width: 600px) {
+      .karte-body { padding: 10px; }
+      .karte-field-grid { grid-template-columns: 1fr 1fr; }
+    }
+
     /* ── 宿題忘れアラート ── */
     .hw-forgot-alert {
       display: inline-flex; align-items: center; gap: 4px;
@@ -1588,6 +1653,18 @@
   </div>
 </div>
 
+<!-- ── 生徒カルテ ── -->
+<div class="overlay karte-overlay" id="karte-modal" style="display:none;z-index:2000;">
+  <div class="karte-panel">
+    <div class="karte-header">
+      <button class="karte-back-btn" onclick="closeKarte()">← 戻る</button>
+      <div class="karte-header-name" id="karte-hdr-name">生徒カルテ</div>
+      <div class="karte-header-grade" id="karte-hdr-grade"></div>
+    </div>
+    <div class="karte-body" id="karte-body"></div>
+  </div>
+</div>
+
 <!-- ── PIN設定モーダル ── -->
 <!-- ── 小テスト 対象者設定モーダル ── -->
 <div class="overlay" id="quiz-target-modal">
@@ -1673,7 +1750,7 @@ const GRADES  = ['小学1年生','小学2年生','小学3年生','小学4年生'
 // ════════════════════════════
 //  インメモリキャッシュ（Supabase から起動時にロード）
 // ════════════════════════════
-const _db = { students: [], attendance: [], makeups: [], templates: {}, homework: [], holidays: [], quizTests: [], quizScores: [] };
+const _db = { students: [], attendance: [], makeups: [], templates: {}, homework: [], holidays: [], quizTests: [], quizScores: [], studentProfiles: [], studentTests: [], studentConsultations: [] };
 
 // ════════════════════════════
 //  データアクセス（キャッシュ読み書き）
@@ -2553,6 +2630,458 @@ async function _autoUnsetHomeworkAbsent(studentId, date) {
 }
 
 // ════════════════════════════
+//  生徒カルテ
+// ════════════════════════════
+let _karteStudentId = null;
+let _karteEditMode  = { basic: false, learning: false, notes: false };
+
+function openKarte(studentId) {
+  _karteStudentId = studentId;
+  _karteEditMode  = { basic: false, learning: false, notes: false };
+  const s = getStudents().find(x => x.id === studentId);
+  if (!s) return;
+  document.getElementById('karte-hdr-name').textContent  = s.name;
+  document.getElementById('karte-hdr-grade').textContent = s.grade || '';
+  document.getElementById('karte-modal').style.display   = 'flex';
+  document.body.style.overflow = 'hidden';
+  renderKarte();
+}
+
+function closeKarte() {
+  document.getElementById('karte-modal').style.display = 'none';
+  document.body.style.overflow = '';
+  _karteStudentId = null;
+}
+
+function getProfile(studentId) {
+  return _db.studentProfiles.find(p => p.studentId === studentId) || {};
+}
+
+function calcAge(birthdayStr) {
+  if (!birthdayStr) return null;
+  const today = new Date();
+  const bd    = new Date(birthdayStr + 'T00:00:00');
+  let age = today.getFullYear() - bd.getFullYear();
+  const m = today.getMonth() - bd.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < bd.getDate())) age--;
+  return age;
+}
+
+function renderKarte() {
+  const sid = _karteStudentId;
+  const s   = getStudents().find(x => x.id === sid);
+  const p   = getProfile(sid);
+  if (!s) return;
+  document.getElementById('karte-body').innerHTML =
+    karteBasicHTML(s, p) +
+    karteLearningHTML(s, p) +
+    karteJukuRecordsHTML(s) +
+    karteNotesHTML(s, p);
+}
+
+// ─ ① 基本情報 ─
+function karteBasicHTML(s, p) {
+  function fval(v) {
+    return v ? `<span class="karte-field-val">${esc(v)}</span>`
+             : `<span class="karte-field-val karte-empty">未登録</span>`;
+  }
+  if (_karteEditMode.basic) {
+    return `
+    <div class="karte-section">
+      <div class="karte-section-title">📋 ① 基本情報
+        <button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="saveKarteBasic()">保存</button>
+        <button class="btn btn-outline btn-sm" onclick="_karteEditMode.basic=false;renderKarte()">キャンセル</button>
+      </div>
+      <div class="karte-basic-top">
+        <div class="karte-avatar" id="karte-av-edit">
+          ${p.photoUrl ? `<img src="${esc(p.photoUrl)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%" onerror="this.style.display='none'" />` : esc(s.name[0]||'?')}
+        </div>
+        <div style="flex:1;">
+          <div style="font-size:.75rem;font-weight:800;color:var(--muted);margin-bottom:3px;">写真URL（任意）</div>
+          <input class="karte-edit-input" id="ke-photo" value="${esc(p.photoUrl)}" placeholder="https://..." style="max-width:340px;"
+            oninput="const av=document.getElementById('karte-av-edit');av.innerHTML=this.value?'<img src=\\''+this.value+'\\' style=\\'width:100%;height:100%;object-fit:cover;border-radius:50%\\' />':'${esc(s.name[0]||'?')}'" />
+        </div>
+      </div>
+      <div class="karte-field-grid">
+        <div class="karte-field"><label>ふりがな</label><input class="karte-edit-input" id="ke-furigana" value="${esc(p.furigana)}" placeholder="やまだ はなこ" /></div>
+        <div class="karte-field"><label>生年月日</label><input class="karte-edit-input" type="date" id="ke-birthday" value="${esc(p.birthday)}" /></div>
+        <div class="karte-field"><label>通っている学校</label><input class="karte-edit-input" id="ke-school" value="${esc(p.schoolName)}" placeholder="〇〇中学校" /></div>
+        <div class="karte-field"><label>入塾日</label><input class="karte-edit-input" type="date" id="ke-enrolled" value="${esc(p.enrolledDate)}" /></div>
+        <div class="karte-field" style="grid-column:1/-1;"><label>兄弟姉妹メモ</label><input class="karte-edit-input" id="ke-siblings" value="${esc(p.siblingsMemo)}" placeholder="例：兄・中3在籍" /></div>
+      </div>
+    </div>`;
+  }
+  const age         = calcAge(p.birthday);
+  const bdLabel     = p.birthday ? p.birthday.replace(/-/g,'/') + (age !== null ? `（${age}歳）` : '') : '';
+  const enrollLabel = p.enrolledDate ? p.enrolledDate.replace(/-/g,'/') + ' 入塾' : '';
+  const dayBadges   = s.days.slice().sort((a,b)=>a-b).map(d=>`<span class="day-badge ${d===5?'sat':d===6?'sun':''}">${DAYS[d]}</span>`).join('');
+  const avatarInner = p.photoUrl
+    ? `<img src="${esc(p.photoUrl)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%" onerror="this.style.display='none'" />`
+    : esc(s.name[0]||'?');
+  return `
+  <div class="karte-section">
+    <div class="karte-section-title">📋 ① 基本情報
+      <button class="btn btn-outline btn-sm" style="margin-left:auto" onclick="_karteEditMode.basic=true;renderKarte()">✏️ 編集</button>
+    </div>
+    <div class="karte-basic-top">
+      <div class="karte-avatar">${avatarInner}</div>
+      <div>
+        <div style="font-size:1.3rem;font-weight:800;">${esc(s.name)}</div>
+        ${p.furigana ? `<div style="font-size:.82rem;color:var(--muted);">${esc(p.furigana)}</div>` : ''}
+        <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">${dayBadges}</div>
+      </div>
+    </div>
+    <div class="karte-field-grid">
+      <div class="karte-field"><label>学年</label>${fval(s.grade)}</div>
+      <div class="karte-field"><label>生年月日</label>${fval(bdLabel)}</div>
+      <div class="karte-field"><label>通っている学校</label>${fval(p.schoolName)}</div>
+      <div class="karte-field"><label>入塾日</label>${fval(enrollLabel)}</div>
+      <div class="karte-field"><label>兄弟姉妹メモ</label>${fval(p.siblingsMemo)}</div>
+    </div>
+  </div>`;
+}
+
+async function saveKarteBasic() {
+  const sid      = _karteStudentId;
+  const existing = getProfile(sid);
+  const data = {
+    student_id:    sid,
+    furigana:      document.getElementById('ke-furigana')?.value?.trim()  || '',
+    birthday:      document.getElementById('ke-birthday')?.value          || '',
+    school_name:   document.getElementById('ke-school')?.value?.trim()    || '',
+    enrolled_date: document.getElementById('ke-enrolled')?.value          || '',
+    siblings_memo: document.getElementById('ke-siblings')?.value?.trim()  || '',
+    photo_url:     document.getElementById('ke-photo')?.value?.trim()     || '',
+    subjects:        existing.subjects        || '',
+    target_school1:  existing.targetSchool1   || '',
+    target_school2:  existing.targetSchool2   || '',
+    goal:            existing.goal            || '',
+    strong_subjects: existing.strongSubjects  || '',
+    weak_subjects:   existing.weakSubjects    || '',
+    naishinsho:      existing.naishinsho      || '',
+    personality:     existing.personality     || '',
+    health_notes:    existing.healthNotes     || '',
+    free_memo:       existing.freeMemo        || '',
+    updated_at: new Date().toISOString(),
+  };
+  const { error } = await _supabase.from('student_profiles').upsert(data);
+  if (error) { toast('⚠️ 保存できませんでした'); return; }
+  const mapped = { studentId: sid, furigana: data.furigana, birthday: data.birthday, schoolName: data.school_name, enrolledDate: data.enrolled_date, siblingsMemo: data.siblings_memo, photoUrl: data.photo_url, subjects: data.subjects, targetSchool1: data.target_school1, targetSchool2: data.target_school2, goal: data.goal, strongSubjects: data.strong_subjects, weakSubjects: data.weak_subjects, naishinsho: data.naishinsho, personality: data.personality, healthNotes: data.health_notes, freeMemo: data.free_memo };
+  const idx = _db.studentProfiles.findIndex(p => p.studentId === sid);
+  if (idx >= 0) Object.assign(_db.studentProfiles[idx], mapped);
+  else _db.studentProfiles.push(mapped);
+  _karteEditMode.basic = false;
+  toast('基本情報を保存しました');
+  renderKarte();
+}
+
+// ─ ② 学習・進路 ─
+function karteLearningHTML(s, p) {
+  function fval(v) {
+    return v ? `<span class="karte-field-val">${esc(v)}</span>`
+             : `<span class="karte-field-val karte-empty">未登録</span>`;
+  }
+  const sid = s.id;
+  if (_karteEditMode.learning) {
+    return `
+    <div class="karte-section">
+      <div class="karte-section-title">📚 ② 学習・進路
+        <button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="saveKarteLearning()">保存</button>
+        <button class="btn btn-outline btn-sm" onclick="_karteEditMode.learning=false;renderKarte()">キャンセル</button>
+      </div>
+      <div class="karte-field-grid">
+        <div class="karte-field" style="grid-column:1/-1;"><label>受講科目・コース</label><input class="karte-edit-input" id="ke-subjects" value="${esc(p.subjects)}" placeholder="例：英語・数学 / 高校受験コース" /></div>
+        <div class="karte-field"><label>第一志望校</label><input class="karte-edit-input" id="ke-ts1" value="${esc(p.targetSchool1)}" placeholder="〇〇高校" /></div>
+        <div class="karte-field"><label>第二志望校</label><input class="karte-edit-input" id="ke-ts2" value="${esc(p.targetSchool2)}" placeholder="〇〇高校" /></div>
+        <div class="karte-field" style="grid-column:1/-1;"><label>目標</label><input class="karte-edit-input" id="ke-goal" value="${esc(p.goal)}" placeholder="例：〇〇高校合格" /></div>
+        <div class="karte-field"><label>得意科目</label><input class="karte-edit-input" id="ke-strong" value="${esc(p.strongSubjects)}" placeholder="例：英語・理科" /></div>
+        <div class="karte-field"><label>苦手科目</label><input class="karte-edit-input" id="ke-weak"   value="${esc(p.weakSubjects)}"   placeholder="例：数学" /></div>
+        <div class="karte-field" style="grid-column:1/-1;"><label>学校の成績・内申点</label><textarea class="karte-edit-textarea" id="ke-naishinsho" placeholder="例：5科 22 / 9科 38">${esc(p.naishinsho)}</textarea></div>
+      </div>
+    </div>
+    ${karteTestHistoryHTML(sid)}`;
+  }
+  return `
+  <div class="karte-section">
+    <div class="karte-section-title">📚 ② 学習・進路
+      <button class="btn btn-outline btn-sm" style="margin-left:auto" onclick="_karteEditMode.learning=true;renderKarte()">✏️ 編集</button>
+    </div>
+    <div class="karte-field-grid">
+      <div class="karte-field" style="grid-column:1/-1;"><label>受講科目・コース</label>${fval(p.subjects)}</div>
+      <div class="karte-field"><label>第一志望校</label>${fval(p.targetSchool1)}</div>
+      <div class="karte-field"><label>第二志望校</label>${fval(p.targetSchool2)}</div>
+      <div class="karte-field" style="grid-column:1/-1;"><label>目標</label>${fval(p.goal)}</div>
+      <div class="karte-field"><label>得意科目</label>${fval(p.strongSubjects)}</div>
+      <div class="karte-field"><label>苦手科目</label>${fval(p.weakSubjects)}</div>
+      <div class="karte-field" style="grid-column:1/-1;"><label>学校の成績・内申点</label>${fval(p.naishinsho)}</div>
+    </div>
+  </div>
+  ${karteTestHistoryHTML(sid)}`;
+}
+
+async function saveKarteLearning() {
+  const sid      = _karteStudentId;
+  const existing = getProfile(sid);
+  const data = {
+    student_id:      sid,
+    furigana:        existing.furigana     || '',
+    birthday:        existing.birthday     || '',
+    school_name:     existing.schoolName   || '',
+    enrolled_date:   existing.enrolledDate || '',
+    siblings_memo:   existing.siblingsMemo || '',
+    photo_url:       existing.photoUrl     || '',
+    subjects:        document.getElementById('ke-subjects')?.value?.trim()  || '',
+    target_school1:  document.getElementById('ke-ts1')?.value?.trim()       || '',
+    target_school2:  document.getElementById('ke-ts2')?.value?.trim()       || '',
+    goal:            document.getElementById('ke-goal')?.value?.trim()      || '',
+    strong_subjects: document.getElementById('ke-strong')?.value?.trim()    || '',
+    weak_subjects:   document.getElementById('ke-weak')?.value?.trim()      || '',
+    naishinsho:      document.getElementById('ke-naishinsho')?.value?.trim()|| '',
+    personality:     existing.personality  || '',
+    health_notes:    existing.healthNotes  || '',
+    free_memo:       existing.freeMemo     || '',
+    updated_at: new Date().toISOString(),
+  };
+  const { error } = await _supabase.from('student_profiles').upsert(data);
+  if (error) { toast('⚠️ 保存できませんでした'); return; }
+  const mapped = { studentId: sid, furigana: data.furigana, birthday: data.birthday, schoolName: data.school_name, enrolledDate: data.enrolled_date, siblingsMemo: data.siblings_memo, photoUrl: data.photo_url, subjects: data.subjects, targetSchool1: data.target_school1, targetSchool2: data.target_school2, goal: data.goal, strongSubjects: data.strong_subjects, weakSubjects: data.weak_subjects, naishinsho: data.naishinsho, personality: data.personality, healthNotes: data.health_notes, freeMemo: data.free_memo };
+  const idx = _db.studentProfiles.findIndex(p => p.studentId === sid);
+  if (idx >= 0) Object.assign(_db.studentProfiles[idx], mapped);
+  else _db.studentProfiles.push(mapped);
+  _karteEditMode.learning = false;
+  toast('学習・進路情報を保存しました');
+  renderKarte();
+}
+
+function karteTestHistoryHTML(sid) {
+  const tests = _db.studentTests.filter(t => t.studentId === sid);
+  const rows  = tests.map(t => {
+    const scoreStr = t.score != null ? `${t.score}${t.maxScore ? ' / ' + t.maxScore : ''}` : '—';
+    return `<tr>
+      <td style="white-space:nowrap;">${esc(t.date)}</td>
+      <td>${esc(t.testName)}</td>
+      <td>${esc(t.subject)}</td>
+      <td style="text-align:right;font-weight:800;">${scoreStr}</td>
+      <td>${esc(t.notes)}</td>
+      <td><button class="btn btn-outline btn-sm" style="padding:3px 8px;font-size:.72rem;" onclick="deleteKarteTest('${t.id}')">削除</button></td>
+    </tr>`;
+  }).join('');
+  return `
+  <div class="karte-section">
+    <div class="karte-section-title">📝 テスト・模試の記録</div>
+    ${tests.length
+      ? `<div style="overflow-x:auto;"><table class="karte-history-table"><thead><tr><th>日付</th><th>テスト名</th><th>科目</th><th>点数</th><th>メモ</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
+      : '<div style="color:var(--muted);font-size:.85rem;padding:4px 0;">記録がありません</div>'}
+    <div class="karte-add-row" style="margin-top:14px;border-top:1px solid var(--border);padding-top:12px;">
+      <input type="date"   class="karte-add-input" id="kt-date"    style="width:142px;" />
+      <input type="text"   class="karte-add-input" id="kt-name"    placeholder="テスト名"  style="flex:2;min-width:110px;" />
+      <input type="text"   class="karte-add-input" id="kt-subject" placeholder="科目"      style="width:76px;" />
+      <input type="number" class="karte-add-input" id="kt-score"   placeholder="点数"      style="width:68px;text-align:center;" />
+      <span style="align-self:center;color:var(--muted);">/</span>
+      <input type="number" class="karte-add-input" id="kt-max"     placeholder="満点"      style="width:68px;text-align:center;" />
+      <input type="text"   class="karte-add-input" id="kt-notes"   placeholder="メモ"      style="flex:2;min-width:90px;" />
+      <button class="btn btn-primary" onclick="addKarteTest()">追加</button>
+    </div>
+  </div>`;
+}
+
+async function addKarteTest() {
+  const sid      = _karteStudentId;
+  const date     = document.getElementById('kt-date')?.value;
+  const testName = document.getElementById('kt-name')?.value?.trim();
+  if (!date || !testName) { toast('日付とテスト名を入力してください'); return; }
+  const subject  = document.getElementById('kt-subject')?.value?.trim() || '';
+  const scoreRaw = document.getElementById('kt-score')?.value;
+  const maxRaw   = document.getElementById('kt-max')?.value;
+  const notes    = document.getElementById('kt-notes')?.value?.trim()   || '';
+  const score    = scoreRaw !== '' ? parseInt(scoreRaw) : null;
+  const maxScore = maxRaw   !== '' ? parseInt(maxRaw)   : null;
+  const id = uid();
+  const { error } = await _supabase.from('student_tests').insert({ id, student_id: sid, date, test_name: testName, subject, score, max_score: maxScore, notes });
+  if (error) { toast('⚠️ 保存できませんでした'); return; }
+  _db.studentTests.unshift({ id, studentId: sid, date, testName, subject, score, maxScore, notes });
+  toast('テスト記録を追加しました');
+  renderKarte();
+}
+
+async function deleteKarteTest(id) {
+  const { error } = await _supabase.from('student_tests').delete().eq('id', id);
+  if (error) { toast('⚠️ 削除できませんでした'); return; }
+  _db.studentTests = _db.studentTests.filter(t => t.id !== id);
+  renderKarte();
+}
+
+// ─ ③ 塾での記録（自動集計）─
+function karteJukuRecordsHTML(s) {
+  const sid        = s.id;
+  const holidaySet = new Set(_db.holidays.map(h => h.date));
+  const attRecs    = _db.attendance.filter(a => a.studentId === sid && !holidaySet.has(a.date))
+                       .sort((a,b) => b.date.localeCompare(a.date));
+  const totalAtt   = attRecs.length;
+  const presentCnt = attRecs.filter(r => r.status !== '欠席').length;
+  const absentCnt  = attRecs.filter(r => r.status === '欠席').length;
+  const rate       = totalAtt ? Math.round(presentCnt / totalAtt * 100) : 0;
+  const thisMonth  = todayStr().slice(0, 7);
+  const komaMonth  = attRecs.filter(r => r.date.startsWith(thisMonth) && r.status !== '欠席').length;
+  const hwRecs     = _db.homework.filter(h => h.studentId === sid);
+  const hwForgot   = hwRecs.filter(h => h.status === '忘れ').length;
+  const hwDone     = hwRecs.filter(h => h.status === '完了').length;
+  const hwTotal    = hwRecs.filter(h => h.status !== null).length;
+  const quizWithTest = _db.quizScores.filter(qs => qs.studentId === sid).map(qs => {
+    const test = _db.quizTests.find(t => t.id === qs.testId);
+    return test ? { ...qs, test } : null;
+  }).filter(Boolean).sort((a,b) => b.test.date.localeCompare(a.test.date));
+  const makeups = _db.makeups.filter(m => m.studentId === sid).sort((a,b) => b.originalDate.localeCompare(a.originalDate));
+  const attRows = attRecs.slice(0,10).map(r => {
+    const col = r.status==='出席'?'color:var(--present)':r.status==='欠席'?'color:var(--absent)':r.status==='遅刻'?'color:var(--late)':r.status==='早退'?'color:var(--early)':'color:#7c3aed';
+    return `<tr><td style="white-space:nowrap;">${esc(r.date)}</td><td style="${col};font-weight:800;">${esc(r.status)}</td><td>${r.time?esc(r.time):''}</td><td>${r.memo?esc(r.memo):''}</td></tr>`;
+  }).join('');
+  const quizRows = quizWithTest.slice(0,10).map(q => {
+    const cls = q.score==null ? 'color:var(--muted)' : q.score>=q.test.passScore ? 'color:var(--present);font-weight:800' : 'color:var(--absent);font-weight:800';
+    const lbl = q.score==null ? '未記録' : `${q.score}${q.test.maxScore?' / '+q.test.maxScore:''}`;
+    return `<tr><td style="white-space:nowrap;">${esc(q.test.date)}</td><td>${esc(q.test.title)}</td><td style="${cls}">${lbl}</td></tr>`;
+  }).join('');
+  const mkRows = makeups.slice(0,5).map(m => {
+    const done = m.done ? '<span style="color:var(--present);font-weight:800;">完了</span>' : '<span style="color:var(--muted);">未完了</span>';
+    return `<tr><td style="white-space:nowrap;">${esc(m.originalDate)}</td><td>${m.makeupDate?esc(m.makeupDate):'—'}</td><td>${done}</td><td>${m.memo?esc(m.memo):''}</td></tr>`;
+  }).join('');
+  return `
+  <div class="karte-section">
+    <div class="karte-section-title">🏫 ③ 塾での記録</div>
+    <div class="karte-stat-row">
+      <div class="karte-stat-chip karte-stat-present"><div class="ks-num">${rate}%</div><div class="ks-lbl">出席率</div></div>
+      <div class="karte-stat-chip karte-stat-present"><div class="ks-num">${presentCnt}</div><div class="ks-lbl">出席回数</div></div>
+      <div class="karte-stat-chip karte-stat-absent" ><div class="ks-num">${absentCnt}</div><div class="ks-lbl">欠席回数</div></div>
+      <div class="karte-stat-chip karte-stat-koma"   ><div class="ks-num">${komaMonth}</div><div class="ks-lbl">今月コマ</div></div>
+      <div class="karte-stat-chip karte-stat-hw"     ><div class="ks-num">${hwForgot}</div><div class="ks-lbl">宿題忘れ</div></div>
+      <div class="karte-stat-chip karte-stat-hw"     ><div class="ks-num">${hwDone}/${hwTotal}</div><div class="ks-lbl">宿題完了</div></div>
+    </div>
+    <div style="font-size:.82rem;font-weight:800;color:var(--muted);margin:4px 0 6px;">最近の出席履歴（直近10回）</div>
+    ${attRecs.length
+      ? `<div style="overflow-x:auto;"><table class="karte-history-table"><thead><tr><th>日付</th><th>状態</th><th>時刻</th><th>メモ</th></tr></thead><tbody>${attRows}</tbody></table></div>`
+      : '<div style="color:var(--muted);font-size:.85rem;padding:4px 0;">出席記録なし</div>'}
+    ${quizWithTest.length ? `
+    <div style="font-size:.82rem;font-weight:800;color:var(--muted);margin:14px 0 6px;">小テストの結果</div>
+    <div style="overflow-x:auto;"><table class="karte-history-table"><thead><tr><th>日付</th><th>テスト名</th><th>点数</th></tr></thead><tbody>${quizRows}</tbody></table></div>` : ''}
+    ${makeups.length ? `
+    <div style="font-size:.82rem;font-weight:800;color:var(--muted);margin:14px 0 6px;">振替履歴</div>
+    <div style="overflow-x:auto;"><table class="karte-history-table"><thead><tr><th>欠席日</th><th>振替日</th><th>状態</th><th>メモ</th></tr></thead><tbody>${mkRows}</tbody></table></div>` : ''}
+  </div>`;
+}
+
+// ─ ④ 特記事項 ─
+function karteNotesHTML(s, p) {
+  function fval(v) {
+    return v ? `<div class="karte-field-val" style="white-space:pre-wrap;">${esc(v)}</div>`
+             : `<div class="karte-field-val karte-empty">未記入</div>`;
+  }
+  const sid  = s.id;
+  const cons = _db.studentConsultations.filter(c => c.studentId === sid);
+  if (_karteEditMode.notes) {
+    return `
+    <div class="karte-section">
+      <div class="karte-section-title">📌 ④ 特記事項
+        <button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="saveKarteNotes()">保存</button>
+        <button class="btn btn-outline btn-sm" onclick="_karteEditMode.notes=false;renderKarte()">キャンセル</button>
+      </div>
+      <div class="karte-field-grid">
+        <div class="karte-field" style="grid-column:1/-1;"><label>性格・学習態度の様子</label><textarea class="karte-edit-textarea" id="ke-personality" placeholder="例：集中力があり真面目。発言が少ない。">${esc(p.personality)}</textarea></div>
+        <div class="karte-field" style="grid-column:1/-1;"><label>配慮事項（健康面など）</label><textarea class="karte-edit-textarea" id="ke-health"       placeholder="例：アレルギーあり。疲れやすい。">${esc(p.healthNotes)}</textarea></div>
+        <div class="karte-field" style="grid-column:1/-1;"><label>自由メモ</label>              <textarea class="karte-edit-textarea" id="ke-freememo"    placeholder="その他なんでも">${esc(p.freeMemo)}</textarea></div>
+      </div>
+    </div>
+    ${karteConsultationHTML(sid, cons)}`;
+  }
+  return `
+  <div class="karte-section">
+    <div class="karte-section-title">📌 ④ 特記事項
+      <button class="btn btn-outline btn-sm" style="margin-left:auto" onclick="_karteEditMode.notes=true;renderKarte()">✏️ 編集</button>
+    </div>
+    <div class="karte-field-grid">
+      <div class="karte-field" style="grid-column:1/-1;"><label>性格・学習態度の様子</label>${fval(p.personality)}</div>
+      <div class="karte-field" style="grid-column:1/-1;"><label>配慮事項（健康面など）</label>${fval(p.healthNotes)}</div>
+      <div class="karte-field" style="grid-column:1/-1;"><label>自由メモ</label>${fval(p.freeMemo)}</div>
+    </div>
+  </div>
+  ${karteConsultationHTML(sid, cons)}`;
+}
+
+async function saveKarteNotes() {
+  const sid      = _karteStudentId;
+  const existing = getProfile(sid);
+  const data = {
+    student_id:      sid,
+    furigana:        existing.furigana      || '',
+    birthday:        existing.birthday      || '',
+    school_name:     existing.schoolName    || '',
+    enrolled_date:   existing.enrolledDate  || '',
+    siblings_memo:   existing.siblingsMemo  || '',
+    photo_url:       existing.photoUrl      || '',
+    subjects:        existing.subjects      || '',
+    target_school1:  existing.targetSchool1 || '',
+    target_school2:  existing.targetSchool2 || '',
+    goal:            existing.goal          || '',
+    strong_subjects: existing.strongSubjects|| '',
+    weak_subjects:   existing.weakSubjects  || '',
+    naishinsho:      existing.naishinsho    || '',
+    personality:     document.getElementById('ke-personality')?.value?.trim() || '',
+    health_notes:    document.getElementById('ke-health')?.value?.trim()      || '',
+    free_memo:       document.getElementById('ke-freememo')?.value?.trim()    || '',
+    updated_at: new Date().toISOString(),
+  };
+  const { error } = await _supabase.from('student_profiles').upsert(data);
+  if (error) { toast('⚠️ 保存できませんでした'); return; }
+  const mapped = { studentId: sid, furigana: data.furigana, birthday: data.birthday, schoolName: data.school_name, enrolledDate: data.enrolled_date, siblingsMemo: data.siblings_memo, photoUrl: data.photo_url, subjects: data.subjects, targetSchool1: data.target_school1, targetSchool2: data.target_school2, goal: data.goal, strongSubjects: data.strong_subjects, weakSubjects: data.weak_subjects, naishinsho: data.naishinsho, personality: data.personality, healthNotes: data.health_notes, freeMemo: data.free_memo };
+  const idx = _db.studentProfiles.findIndex(p => p.studentId === sid);
+  if (idx >= 0) Object.assign(_db.studentProfiles[idx], mapped);
+  else _db.studentProfiles.push(mapped);
+  _karteEditMode.notes = false;
+  toast('特記事項を保存しました');
+  renderKarte();
+}
+
+function karteConsultationHTML(sid, cons) {
+  const rows = cons.map(c => `
+    <tr>
+      <td style="white-space:nowrap;">${esc(c.date)}</td>
+      <td style="white-space:pre-wrap;">${esc(c.memo)}</td>
+      <td><button class="btn btn-outline btn-sm" style="padding:3px 8px;font-size:.72rem;" onclick="deleteKarteConsultation('${c.id}')">削除</button></td>
+    </tr>`).join('');
+  return `
+  <div class="karte-section" style="margin-bottom:32px;">
+    <div class="karte-section-title">💬 保護者面談の記録</div>
+    ${cons.length
+      ? `<div style="overflow-x:auto;"><table class="karte-history-table"><thead><tr><th>日付</th><th>内容</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>`
+      : '<div style="color:var(--muted);font-size:.85rem;padding:4px 0;">記録がありません</div>'}
+    <div class="karte-add-row" style="border-top:1px solid var(--border);padding-top:12px;margin-top:12px;">
+      <input type="date" class="karte-add-input" id="kc-date" style="width:145px;flex-shrink:0;" />
+      <textarea class="karte-add-input" id="kc-memo" placeholder="面談の内容メモ" style="flex:1;min-width:160px;min-height:60px;resize:vertical;"></textarea>
+      <button class="btn btn-primary" style="align-self:flex-end;" onclick="addKarteConsultation()">追加</button>
+    </div>
+  </div>`;
+}
+
+async function addKarteConsultation() {
+  const sid  = _karteStudentId;
+  const date = document.getElementById('kc-date')?.value;
+  const memo = document.getElementById('kc-memo')?.value?.trim() || '';
+  if (!date) { toast('日付を選択してください'); return; }
+  const id = uid();
+  const { error } = await _supabase.from('student_consultations').insert({ id, student_id: sid, date, memo });
+  if (error) { toast('⚠️ 保存できませんでした'); return; }
+  _db.studentConsultations.unshift({ id, studentId: sid, date, memo });
+  toast('面談記録を追加しました');
+  renderKarte();
+}
+
+async function deleteKarteConsultation(id) {
+  const { error } = await _supabase.from('student_consultations').delete().eq('id', id);
+  if (error) { toast('⚠️ 削除できませんでした'); return; }
+  _db.studentConsultations = _db.studentConsultations.filter(c => c.id !== id);
+  renderKarte();
+}
+
+// ════════════════════════════
 //  宿題忘れアラート
 // ════════════════════════════
 function prevWeekRange(dateStr) {
@@ -3068,6 +3597,7 @@ function renderStudents() {
           <div class="student-days">${badges}</div>
         </div>
         <div class="student-actions">
+          <button class="btn btn-primary btn-sm" onclick="openKarte('${s.id}')">📋 カルテ</button>
           <button class="btn btn-outline btn-sm" onclick="openEdit('${s.id}')">✏️ 編集</button>
           <button class="btn btn-danger  btn-sm" onclick="deleteStudent('${s.id}')">🗑 削除</button>
         </div>
@@ -3795,7 +4325,7 @@ function hideLoading() {
 //  Supabase データロード
 // ════════════════════════════
 async function loadAllData() {
-  const [s, a, m, t, hw, hl, qt, qs] = await Promise.all([
+  const [s, a, m, t, hw, hl, qt, qs, sp, st, sc] = await Promise.all([
     _supabase.from('students').select('*').order('created_at'),
     _supabase.from('attendance').select('*'),
     _supabase.from('makeups').select('*'),
@@ -3803,7 +4333,10 @@ async function loadAllData() {
     _supabase.from('homework').select('*'),
     _supabase.from('holidays').select('*').order('date'),
     _supabase.from('quiz_tests').select('*').order('date'),
-    _supabase.from('quiz_scores').select('*')
+    _supabase.from('quiz_scores').select('*'),
+    _supabase.from('student_profiles').select('*'),
+    _supabase.from('student_tests').select('*').order('date', { ascending: false }),
+    _supabase.from('student_consultations').select('*').order('date', { ascending: false })
   ]);
   _db.students    = (s.data || []).map(r => ({ id: r.id, name: r.name, grade: r.grade || '', days: r.days || [] }));
   _db.attendance  = (a.data || []).map(r => ({ id: r.id, date: r.date, studentId: r.student_id, status: r.status, time: r.time || undefined, memo: r.memo || undefined }));
@@ -3814,6 +4347,9 @@ async function loadAllData() {
   _db.holidays    = (hl.data || []).map(r => ({ id: r.id, date: r.date, memo: r.memo || '' }));
   _db.quizTests   = (qt.data || []).map(r => ({ id: r.id, date: r.date, title: r.title, maxScore: r.max_score, passScore: r.pass_score, targetStudents: r.target_students || [] }));
   _db.quizScores  = (qs.data || []).map(r => ({ id: r.id, testId: r.test_id, studentId: r.student_id, score: r.score }));
+  _db.studentProfiles      = (sp.data || []).map(r => ({ studentId: r.student_id, furigana: r.furigana||'', birthday: r.birthday||'', schoolName: r.school_name||'', enrolledDate: r.enrolled_date||'', siblingsMemo: r.siblings_memo||'', photoUrl: r.photo_url||'', subjects: r.subjects||'', targetSchool1: r.target_school1||'', targetSchool2: r.target_school2||'', goal: r.goal||'', strongSubjects: r.strong_subjects||'', weakSubjects: r.weak_subjects||'', naishinsho: r.naishinsho||'', personality: r.personality||'', healthNotes: r.health_notes||'', freeMemo: r.free_memo||'' }));
+  _db.studentTests         = (st.data || []).map(r => ({ id: r.id, studentId: r.student_id, date: r.date, testName: r.test_name, subject: r.subject||'', score: r.score, maxScore: r.max_score, notes: r.notes||'' }));
+  _db.studentConsultations = (sc.data || []).map(r => ({ id: r.id, studentId: r.student_id, date: r.date, memo: r.memo||'' }));
 }
 
 // ════════════════════════════
