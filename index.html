@@ -2698,16 +2698,16 @@ function karteBasicHTML(s, p) {
         </div>
         <div style="flex:1;">
           <div style="font-size:.75rem;font-weight:800;color:var(--muted);margin-bottom:3px;">写真URL（任意）</div>
-          <input class="karte-edit-input" id="ke-photo" value="${esc(p.photoUrl)}" placeholder="https://..." style="max-width:340px;"
+          <input class="karte-edit-input" id="ke-photo" value="${esc(p.photoUrl||'')}" placeholder="https://..." style="max-width:340px;"
             oninput="const av=document.getElementById('karte-av-edit');av.innerHTML=this.value?'<img src=\\''+this.value+'\\' style=\\'width:100%;height:100%;object-fit:cover;border-radius:50%\\' />':'${esc(s.name[0]||'?')}'" />
         </div>
       </div>
       <div class="karte-field-grid">
-        <div class="karte-field"><label>ふりがな</label><input class="karte-edit-input" id="ke-furigana" value="${esc(p.furigana)}" placeholder="やまだ はなこ" /></div>
-        <div class="karte-field"><label>生年月日</label><input class="karte-edit-input" type="date" id="ke-birthday" value="${esc(p.birthday)}" /></div>
-        <div class="karte-field"><label>通っている学校</label><input class="karte-edit-input" id="ke-school" value="${esc(p.schoolName)}" placeholder="〇〇中学校" /></div>
-        <div class="karte-field"><label>入塾日</label><input class="karte-edit-input" type="date" id="ke-enrolled" value="${esc(p.enrolledDate)}" /></div>
-        <div class="karte-field" style="grid-column:1/-1;"><label>兄弟姉妹メモ</label><input class="karte-edit-input" id="ke-siblings" value="${esc(p.siblingsMemo)}" placeholder="例：兄・中3在籍" /></div>
+        <div class="karte-field"><label>ふりがな</label><input class="karte-edit-input" id="ke-furigana" value="${esc(p.furigana||'')}" placeholder="やまだ はなこ" /></div>
+        <div class="karte-field"><label>生年月日</label><input class="karte-edit-input" type="date" id="ke-birthday" value="${esc(p.birthday||'')}" /></div>
+        <div class="karte-field"><label>通っている学校</label><input class="karte-edit-input" id="ke-school" value="${esc(p.schoolName||'')}" placeholder="〇〇中学校" /></div>
+        <div class="karte-field"><label>入塾日</label><input class="karte-edit-input" type="date" id="ke-enrolled" value="${esc(p.enrolledDate||'')}" /></div>
+        <div class="karte-field" style="grid-column:1/-1;"><label>兄弟姉妹メモ</label><input class="karte-edit-input" id="ke-siblings" value="${esc(p.siblingsMemo||'')}" placeholder="例：兄・中3在籍" /></div>
       </div>
     </div>`;
   }
@@ -2790,13 +2790,13 @@ function karteLearningHTML(s, p) {
         <button class="btn btn-outline btn-sm" onclick="_karteEditMode.learning=false;renderKarte()">キャンセル</button>
       </div>
       <div class="karte-field-grid">
-        <div class="karte-field" style="grid-column:1/-1;"><label>受講科目・コース</label><input class="karte-edit-input" id="ke-subjects" value="${esc(p.subjects)}" placeholder="例：英語・数学 / 高校受験コース" /></div>
-        <div class="karte-field"><label>第一志望校</label><input class="karte-edit-input" id="ke-ts1" value="${esc(p.targetSchool1)}" placeholder="〇〇高校" /></div>
-        <div class="karte-field"><label>第二志望校</label><input class="karte-edit-input" id="ke-ts2" value="${esc(p.targetSchool2)}" placeholder="〇〇高校" /></div>
-        <div class="karte-field" style="grid-column:1/-1;"><label>目標</label><input class="karte-edit-input" id="ke-goal" value="${esc(p.goal)}" placeholder="例：〇〇高校合格" /></div>
-        <div class="karte-field"><label>得意科目</label><input class="karte-edit-input" id="ke-strong" value="${esc(p.strongSubjects)}" placeholder="例：英語・理科" /></div>
-        <div class="karte-field"><label>苦手科目</label><input class="karte-edit-input" id="ke-weak"   value="${esc(p.weakSubjects)}"   placeholder="例：数学" /></div>
-        <div class="karte-field" style="grid-column:1/-1;"><label>学校の成績・内申点</label><textarea class="karte-edit-textarea" id="ke-naishinsho" placeholder="例：5科 22 / 9科 38">${esc(p.naishinsho)}</textarea></div>
+        <div class="karte-field" style="grid-column:1/-1;"><label>受講科目・コース</label><input class="karte-edit-input" id="ke-subjects" value="${esc(p.subjects||'')}" placeholder="例：英語・数学 / 高校受験コース" /></div>
+        <div class="karte-field"><label>第一志望校</label><input class="karte-edit-input" id="ke-ts1" value="${esc(p.targetSchool1||'')}" placeholder="〇〇高校" /></div>
+        <div class="karte-field"><label>第二志望校</label><input class="karte-edit-input" id="ke-ts2" value="${esc(p.targetSchool2||'')}" placeholder="〇〇高校" /></div>
+        <div class="karte-field" style="grid-column:1/-1;"><label>目標</label><input class="karte-edit-input" id="ke-goal" value="${esc(p.goal||'')}" placeholder="例：〇〇高校合格" /></div>
+        <div class="karte-field"><label>得意科目</label><input class="karte-edit-input" id="ke-strong" value="${esc(p.strongSubjects||'')}" placeholder="例：英語・理科" /></div>
+        <div class="karte-field"><label>苦手科目</label><input class="karte-edit-input" id="ke-weak"   value="${esc(p.weakSubjects||'')}"   placeholder="例：数学" /></div>
+        <div class="karte-field" style="grid-column:1/-1;"><label>学校の成績・内申点</label><textarea class="karte-edit-textarea" id="ke-naishinsho" placeholder="例：5科 22 / 9科 38">${esc(p.naishinsho||'')}</textarea></div>
       </div>
     </div>
     ${karteTestHistoryHTML(sid)}`;
@@ -2985,9 +2985,9 @@ function karteNotesHTML(s, p) {
         <button class="btn btn-outline btn-sm" onclick="_karteEditMode.notes=false;renderKarte()">キャンセル</button>
       </div>
       <div class="karte-field-grid">
-        <div class="karte-field" style="grid-column:1/-1;"><label>性格・学習態度の様子</label><textarea class="karte-edit-textarea" id="ke-personality" placeholder="例：集中力があり真面目。発言が少ない。">${esc(p.personality)}</textarea></div>
-        <div class="karte-field" style="grid-column:1/-1;"><label>配慮事項（健康面など）</label><textarea class="karte-edit-textarea" id="ke-health"       placeholder="例：アレルギーあり。疲れやすい。">${esc(p.healthNotes)}</textarea></div>
-        <div class="karte-field" style="grid-column:1/-1;"><label>自由メモ</label>              <textarea class="karte-edit-textarea" id="ke-freememo"    placeholder="その他なんでも">${esc(p.freeMemo)}</textarea></div>
+        <div class="karte-field" style="grid-column:1/-1;"><label>性格・学習態度の様子</label><textarea class="karte-edit-textarea" id="ke-personality" placeholder="例：集中力があり真面目。発言が少ない。">${esc(p.personality||'')}</textarea></div>
+        <div class="karte-field" style="grid-column:1/-1;"><label>配慮事項（健康面など）</label><textarea class="karte-edit-textarea" id="ke-health"       placeholder="例：アレルギーあり。疲れやすい。">${esc(p.healthNotes||'')}</textarea></div>
+        <div class="karte-field" style="grid-column:1/-1;"><label>自由メモ</label>              <textarea class="karte-edit-textarea" id="ke-freememo"    placeholder="その他なんでも">${esc(p.freeMemo||'')}</textarea></div>
       </div>
     </div>
     ${karteConsultationHTML(sid, cons)}`;
