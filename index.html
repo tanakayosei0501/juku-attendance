@@ -189,7 +189,7 @@
     }
     .student-item:last-child { border-bottom: none; }
     .student-info { flex: 1; min-width: 0; }
-    .student-name { font-weight: 800; font-size: 1rem; }
+    .student-name { font-weight: 800; font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .student-days { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 5px; align-items: center; }
     .school-badge { font-size: .72rem; font-weight: 700; color: var(--muted); background: #f0f4f8; border: 1px solid var(--border); border-radius: 6px; padding: 2px 7px; white-space: nowrap; }
     .day-badge {
@@ -939,6 +939,10 @@
     @media (max-width: 600px) {
       .karte-body { padding: 10px; }
       .karte-field-grid { grid-template-columns: 1fr 1fr; }
+      /* 生徒一覧：スマホでは情報行とボタン行を2段に分ける */
+      .student-item { flex-wrap: wrap; align-items: flex-start; }
+      .student-info { width: 100%; }
+      .student-actions { width: 100%; margin-top: 6px; flex-wrap: wrap; }
     }
 
     /* ── 宿題忘れアラート ── */
