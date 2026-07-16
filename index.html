@@ -1742,6 +1742,32 @@ const SUPABASE_URL  = 'https://xgisflbaomyplxoiwhda.supabase.co';
 const SUPABASE_KEY  = 'sb_publishable_-VyLSUzuHwOQ4mvt0_Z4_g_efv-PMAu';
 const FIXED_EMAIL   = 'sensei@juku.local';
 const _supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+  // ===== 校舎切り替え機能 =====
+let CURRENT_CAMPUS = localStorage.getItem('currentCampus') || '鶴瀬東';
+
+function setCampus(campus) {
+  localStorage.setItem('currentCampus', campus);
+  location.reload();
+}
+
+function renderCampusSwitcher() {
+  const bar = document.createElement('div');
+  bar.id = 'campus-switcher-bar';
+  bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;display:flex;gap:0;background:#333;padding:6px;justify-content:center;box-shadow:0 2px 4px rgba(0,0,0,0.2);';
+
+  const campuses = ['鶴瀬東', '羽沢'];
+  campuses.forEach(c => {
+    const btn = document.createElement('button');
+    btn.textContent = c;
+    btn.onclick = () => setCampus(c);
+    const active = (c === CURRENT_CAMPUS);
+    btn.style.cssText = `margin:0 4px;padding:6px 16px;border:none;border-radius:6px;font-size:14px;font-weight:bold;cursor:pointer;background:${active ? '#4CAF50' : '#666'};color:#fff;`;
+    bar.appendChild(btn);
+  });
+
+  document.body.prepend(bar);
+  document.body.style.marginTop = '48px';
+}
 
 // ════════════════════════════
 //  定数
@@ -4486,6 +4512,8 @@ async function init() {
 }
 
 async function continueInit() {
+  function continueInit() {
+  renderCampusSwitcher();
   showLoading('データを読み込み中...');
   try {
     await loadAllData();
