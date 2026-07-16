@@ -1312,11 +1312,9 @@
     <!-- 休講日管理 -->
     <div class="card">
       <div class="card-title">🏖️ 休講日管理</div>
-      <p style="font-size:.83rem;color:var(--muted);margin-bottom:14px;">休講日に設定した日は出席・宿題の入力欄が非表示になり、集計から除外されます。<br>お盆・年末年始などまとめて休む場合は「終了日」も入れると期間ぶんを一括登録できます（1日だけなら終了日は空のままでOK）。</p>
-      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center;">
-        <input type="date" id="hl-date" title="開始日" style="flex:1;min-width:150px;padding:11px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:1rem;font-family:inherit;background:#fff;color:var(--text);" />
-        <span style="font-weight:800;color:var(--muted);flex-shrink:0;">〜</span>
-        <input type="date" id="hl-end" title="終了日（任意）" style="flex:1;min-width:150px;padding:11px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:1rem;font-family:inherit;background:#fff;color:var(--text);" />
+      <p style="font-size:.83rem;color:var(--muted);margin-bottom:14px;">休講日に設定した日は出席・宿題の入力欄が非表示になり、集計から除外されます。</p>
+      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+        <input type="date" id="hl-date" style="flex:1;min-width:160px;padding:11px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:1rem;font-family:inherit;background:#fff;color:var(--text);" />
         <input type="text" id="hl-memo" placeholder="理由（お盆休み など）" maxlength="30"
                style="flex:2;min-width:160px;padding:11px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:.95rem;font-family:inherit;background:#fff;color:var(--text);" />
         <select id="hl-campus" class="grade-select" style="flex:1;min-width:150px;"></select>
@@ -3527,54 +3525,28 @@ function renderHolidayList() {
   }).join('');
 }
 
-// 開始日〜終了日（両端含む）の 'YYYY-MM-DD' 一覧を返す
-function dateRangeList(start, end) {
-  const out = [];
-  const last = new Date(end + 'T00:00:00');
-  let d = new Date(start + 'T00:00:00');
-  let guard = 0;
-  while (d <= last && guard < 400) {   // 念のため最大400日で打ち切り
-    const y  = d.getFullYear();
-    const m  = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    out.push(`${y}-${m}-${dd}`);
-    d.setDate(d.getDate() + 1);
-    guard++;
-  }
-  return out;
-}
-
 async function addHoliday() {
   const dateEl   = document.getElementById('hl-date');
-  const endEl    = document.getElementById('hl-end');
   const memoEl   = document.getElementById('hl-memo');
   const campusEl = document.getElementById('hl-campus');
-  const start    = dateEl.value;
-  const end      = (endEl && endEl.value) ? endEl.value : start;  // 終了日が空なら1日だけ
+  const date     = dateEl.value;
   const memo     = memoEl.value.trim();
   const campus   = campusEl ? campusEl.value : CURRENT_CAMPUS;
 
-  if (!start) { toast('開始日を選択してください'); return; }
-  if (end < start) { toast('終了日は開始日と同じか、後の日にしてください'); return; }
+  if (!date) { toast('日付を選択してください'); return; }
+  // 同じ日付＋同じ校舎区分の重複だけをチェック
+  if (_db.holidays.some(h => h.date === date && h.campus === campus)) { toast('すでに登録されている日付です'); return; }
 
-  const allDates = dateRangeList(start, end);
-  // すでに登録済み（同じ校舎区分）を除いた、新規ぶんだけ登録する
-  const newDates = allDates.filter(dt => !_db.holidays.some(h => h.date === dt && h.campus === campus));
-  if (!newDates.length) { toast('その期間はすでに登録済みです'); return; }
-
-  const newRows = newDates.map(dt => ({ id: uid(), date: dt, memo: memo || null, campus }));
-  const { error } = await _supabase.from('holidays').insert(newRows);
+  const id = uid();
+  const { error } = await _supabase.from('holidays').insert({ id, date, memo: memo || null, campus });
   if (error) { toast('⚠️ 保存できませんでした'); return; }
 
-  newRows.forEach(r => _db.holidays.push({ id: r.id, date: r.date, memo: r.memo || '', campus: r.campus }));
+  _db.holidays.push({ id, date, memo, campus });
   _db.holidays.sort((a,b) => a.date.localeCompare(b.date));
   dateEl.value = '';
-  if (endEl) endEl.value = '';
   memoEl.value = '';
   const campusLabel = campus === '共通' ? '共通' : campus + '校舎';
-  toast(newDates.length === 1
-    ? `${newDates[0]}（${campusLabel}）を休講日に登録しました`
-    : `${start}〜${end}（${campusLabel}・${newDates.length}日間）を休講日に登録しました`);
+  toast(`${date}（${campusLabel}）を休講日に登録しました`);
   renderHolidayList();
   // 集計・表示の再描画
   renderToday();
