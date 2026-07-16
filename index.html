@@ -1317,6 +1317,7 @@
         <input type="date" id="hl-date" style="flex:1;min-width:160px;padding:11px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:1rem;font-family:inherit;background:#fff;color:var(--text);" />
         <input type="text" id="hl-memo" placeholder="理由（お盆休み など）" maxlength="30"
                style="flex:2;min-width:160px;padding:11px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:.95rem;font-family:inherit;background:#fff;color:var(--text);" />
+        <select id="hl-campus" class="grade-select" style="flex:1;min-width:150px;"></select>
         <button class="btn btn-primary" onclick="addHoliday()" style="white-space:nowrap;flex-shrink:0;">休講日に登録</button>
       </div>
       <div id="holiday-list"><div class="empty"><p>登録された休講日はありません</p></div></div>
@@ -1753,15 +1754,20 @@ function setCampus(campus) {
 function renderCampusSwitcher() {
   const bar = document.createElement('div');
   bar.id = 'campus-switcher-bar';
-  bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;display:flex;gap:0;background:#333;padding:6px;justify-content:center;box-shadow:0 2px 4px rgba(0,0,0,0.2);';
+  bar.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9999;display:flex;align-items:center;gap:6px;background:#2b2d42;padding:6px 10px;justify-content:center;box-shadow:0 2px 4px rgba(0,0,0,0.25);';
+
+  const lbl = document.createElement('span');
+  lbl.textContent = '🏫 校舎:';
+  lbl.style.cssText = 'color:#fff;font-size:13px;font-weight:800;margin-right:2px;';
+  bar.appendChild(lbl);
 
   const campuses = ['鶴瀬東', '羽沢'];
   campuses.forEach(c => {
     const btn = document.createElement('button');
-    btn.textContent = c;
-    btn.onclick = () => setCampus(c);
     const active = (c === CURRENT_CAMPUS);
-    btn.style.cssText = `margin:0 4px;padding:6px 16px;border:none;border-radius:6px;font-size:14px;font-weight:bold;cursor:pointer;background:${active ? '#4CAF50' : '#666'};color:#fff;`;
+    btn.textContent = (active ? '✓ ' : '') + c + '校舎';
+    btn.onclick = () => { if (!active) setCampus(c); };
+    btn.style.cssText = `margin:0 2px;padding:6px 16px;border:none;border-radius:6px;font-size:14px;font-weight:bold;cursor:pointer;background:${active ? '#4CAF50' : '#666'};color:#fff;`;
     bar.appendChild(btn);
   });
 
@@ -3296,9 +3302,9 @@ async function addQuizTest() {
   if (pass > max) { toast('合格点は満点以下にしてください'); return; }
 
   const id = uid();
-  const { error } = await _supabase.from('quiz_tests').insert({ id, date, title, max_score: max, pass_score: pass, target_students: [] });
+  const { error } = await _supabase.from('quiz_tests').insert({ id, date, title, max_score: max, pass_score: pass, target_students: [], campus: CURRENT_CAMPUS });
   if (error) { toast('⚠️ 保存できませんでした'); return; }
-  _db.quizTests.push({ id, date, title, maxScore: max, passScore: pass, targetStudents: [] });
+  _db.quizTests.push({ id, date, title, maxScore: max, passScore: pass, targetStudents: [], campus: CURRENT_CAMPUS });
   document.getElementById('quiz-title').value = '';
   toast(`「${title}」を追加しました`);
   renderQuiz();
@@ -3492,9 +3498,13 @@ function renderHolidayList() {
     const di = dayIdx(h.date);
     const label = `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${DAYS[di]}）`;
     const memo  = h.memo ? `<span class="holiday-memo-label">― ${esc(h.memo)}</span>` : '';
+    const campusRaw = h.campus || '共通';
+    const isCommon  = campusRaw === '共通';
+    const campusBadge = `<span class="school-badge" style="${isCommon ? 'background:#e8f0fe;color:var(--primary);border-color:#c5d5fc;' : ''}">${isCommon ? '🏫 共通' : esc(campusRaw) + '校舎'}</span>`;
     return `<div class="holiday-item">
       <div>
         <span class="holiday-date-label">${label}</span>
+        ${campusBadge}
         ${memo}
       </div>
       <button class="btn btn-outline btn-sm" onclick="deleteHoliday('${h.id}')">削除</button>
@@ -3503,23 +3513,27 @@ function renderHolidayList() {
 }
 
 async function addHoliday() {
-  const dateEl = document.getElementById('hl-date');
-  const memoEl = document.getElementById('hl-memo');
-  const date   = dateEl.value;
-  const memo   = memoEl.value.trim();
+  const dateEl   = document.getElementById('hl-date');
+  const memoEl   = document.getElementById('hl-memo');
+  const campusEl = document.getElementById('hl-campus');
+  const date     = dateEl.value;
+  const memo     = memoEl.value.trim();
+  const campus   = campusEl ? campusEl.value : CURRENT_CAMPUS;
 
   if (!date) { toast('日付を選択してください'); return; }
-  if (_db.holidays.some(h => h.date === date)) { toast('すでに登録されている日付です'); return; }
+  // 同じ日付＋同じ校舎区分の重複だけをチェック
+  if (_db.holidays.some(h => h.date === date && h.campus === campus)) { toast('すでに登録されている日付です'); return; }
 
   const id = uid();
-  const { error } = await _supabase.from('holidays').insert({ id, date, memo: memo || null });
+  const { error } = await _supabase.from('holidays').insert({ id, date, memo: memo || null, campus });
   if (error) { toast('⚠️ 保存できませんでした'); return; }
 
-  _db.holidays.push({ id, date, memo });
+  _db.holidays.push({ id, date, memo, campus });
   _db.holidays.sort((a,b) => a.date.localeCompare(b.date));
   dateEl.value = '';
   memoEl.value = '';
-  toast(`${date} を休講日に登録しました`);
+  const campusLabel = campus === '共通' ? '共通' : campus + '校舎';
+  toast(`${date}（${campusLabel}）を休講日に登録しました`);
   renderHolidayList();
   // 集計・表示の再描画
   renderToday();
@@ -3684,9 +3698,9 @@ async function addStudent() {
   if (!days.length) { toast('曜日を1つ以上選んでください'); return; }
   const grade = document.getElementById('s-grade').value;
   const id    = uid();
-  const { error } = await _supabase.from('students').insert({ id, name, grade: grade || '', days });
+  const { error } = await _supabase.from('students').insert({ id, name, grade: grade || '', days, campus: CURRENT_CAMPUS });
   if (error) { toast('⚠️ 保存できませんでした'); return; }
-  _db.students.push({ id, name, grade, days });
+  _db.students.push({ id, name, grade, days, campus: CURRENT_CAMPUS });
   document.getElementById('s-name').value = '';
   initGradeSelect('s-grade');
   buildDays('s-days', 's');
@@ -4410,18 +4424,33 @@ async function loadAllData() {
     _supabase.from('student_tests').select('*').order('date', { ascending: false }),
     _supabase.from('student_consultations').select('*').order('date', { ascending: false })
   ]);
-  _db.students    = (s.data || []).map(r => ({ id: r.id, name: r.name, grade: r.grade || '', days: r.days || [] }));
+  _db.students    = (s.data || []).map(r => ({ id: r.id, name: r.name, grade: r.grade || '', days: r.days || [], campus: r.campus || '鶴瀬東' }));
   _db.attendance  = (a.data || []).map(r => ({ id: r.id, date: r.date, studentId: r.student_id, status: r.status, time: r.time || undefined, memo: r.memo || undefined }));
   _db.makeups     = (m.data || []).map(r => ({ id: r.id, studentId: r.student_id, originalDate: r.original_date, makeupDate: r.makeup_date || undefined, memo: r.memo || undefined, done: r.done }));
   const tplRow    = (t.data || []).find(r => r.key === 'templates');
   _db.templates   = tplRow ? JSON.parse(tplRow.value) : {};
   _db.homework    = (hw.data || []).map(r => ({ id: r.id, studentId: r.student_id, date: r.date, status: r.status || null, memo: r.memo || undefined }));
-  _db.holidays    = (hl.data || []).map(r => ({ id: r.id, date: r.date, memo: r.memo || '' }));
-  _db.quizTests   = (qt.data || []).map(r => ({ id: r.id, date: r.date, title: r.title, maxScore: r.max_score, passScore: r.pass_score, targetStudents: r.target_students || [] }));
+  _db.holidays    = (hl.data || []).map(r => ({ id: r.id, date: r.date, memo: r.memo || '', campus: r.campus || '共通' }));
+  _db.quizTests   = (qt.data || []).map(r => ({ id: r.id, date: r.date, title: r.title, maxScore: r.max_score, passScore: r.pass_score, targetStudents: r.target_students || [], campus: r.campus || '鶴瀬東' }));
   _db.quizScores  = (qs.data || []).map(r => ({ id: r.id, testId: r.test_id, studentId: r.student_id, score: r.score }));
   _db.studentProfiles      = (sp.data || []).map(r => ({ studentId: r.student_id, furigana: r.furigana||'', birthday: r.birthday||'', schoolName: r.school_name||'', enrolledDate: r.enrolled_date||'', siblingsMemo: r.siblings_memo||'', photoUrl: r.photo_url||'', subjects: r.subjects||'', targetSchool1: r.target_school1||'', targetSchool2: r.target_school2||'', goal: r.goal||'', strongSubjects: r.strong_subjects||'', weakSubjects: r.weak_subjects||'', naishinsho: r.naishinsho||'', personality: r.personality||'', healthNotes: r.health_notes||'', freeMemo: r.free_memo||'' }));
   _db.studentTests         = (st.data || []).map(r => ({ id: r.id, studentId: r.student_id, date: r.date, testName: r.test_name, subject: r.subject||'', score: r.score, maxScore: r.max_score, notes: r.notes||'' }));
   _db.studentConsultations = (sc.data || []).map(r => ({ id: r.id, studentId: r.student_id, date: r.date, memo: r.memo||'' }));
+
+  // ===== 校舎でフィルタ：いま選択中の校舎のデータだけを画面に出す =====
+  // （データベース自体は全校舎ぶん保持したまま、表示だけを切り替える）
+  _db.students = _db.students.filter(s => s.campus === CURRENT_CAMPUS);
+  const _campusIds = new Set(_db.students.map(s => s.id));
+  _db.attendance           = _db.attendance.filter(a => _campusIds.has(a.studentId));
+  _db.makeups              = _db.makeups.filter(m => _campusIds.has(m.studentId));
+  _db.homework             = _db.homework.filter(h => _campusIds.has(h.studentId));
+  _db.quizScores           = _db.quizScores.filter(qs => _campusIds.has(qs.studentId));
+  _db.studentProfiles      = _db.studentProfiles.filter(p => _campusIds.has(p.studentId));
+  _db.studentTests         = _db.studentTests.filter(t => _campusIds.has(t.studentId));
+  _db.studentConsultations = _db.studentConsultations.filter(c => _campusIds.has(c.studentId));
+  _db.quizTests            = _db.quizTests.filter(t => t.campus === CURRENT_CAMPUS);
+  // 休講日は「この校舎」＋「共通（両校舎）」を表示対象にする
+  _db.holidays             = _db.holidays.filter(h => h.campus === CURRENT_CAMPUS || h.campus === '共通');
 }
 
 // ════════════════════════════
@@ -4526,6 +4555,13 @@ async function continueInit() {
   // 宿題タブの初期化
   initGradeFilter('hw-grade');
   document.getElementById('hw-date').value = todayStr();
+  // 休講日フォームの校舎セレクトを初期化（この校舎 / 共通）
+  const hlCampusEl = document.getElementById('hl-campus');
+  if (hlCampusEl) {
+    hlCampusEl.innerHTML =
+      `<option value="${CURRENT_CAMPUS}">${CURRENT_CAMPUS}校舎のみ</option>` +
+      `<option value="共通">共通（両校舎）</option>`;
+  }
   renderHolidayList();
 
   // 小テストタブの初期化
