@@ -1312,9 +1312,11 @@
     <!-- 休講日管理 -->
     <div class="card">
       <div class="card-title">🏖️ 休講日管理</div>
-      <p style="font-size:.83rem;color:var(--muted);margin-bottom:14px;">休講日に設定した日は出席・宿題の入力欄が非表示になり、集計から除外されます。</p>
-      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
-        <input type="date" id="hl-date" style="flex:1;min-width:160px;padding:11px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:1rem;font-family:inherit;background:#fff;color:var(--text);" />
+      <p style="font-size:.83rem;color:var(--muted);margin-bottom:14px;">休講日に設定した日は出席・宿題の入力欄が非表示になり、集計から除外されます。<br>お盆・年末年始などまとめて休む場合は「終了日」も入れると期間ぶんを一括登録できます（1日だけなら終了日は空のままでOK）。</p>
+      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center;">
+        <input type="date" id="hl-date" title="開始日" style="flex:1;min-width:150px;padding:11px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:1rem;font-family:inherit;background:#fff;color:var(--text);" />
+        <span style="font-weight:800;color:var(--muted);flex-shrink:0;">〜</span>
+        <input type="date" id="hl-end" title="終了日（任意）" style="flex:1;min-width:150px;padding:11px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:1rem;font-family:inherit;background:#fff;color:var(--text);" />
         <input type="text" id="hl-memo" placeholder="理由（お盆休み など）" maxlength="30"
                style="flex:2;min-width:160px;padding:11px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:.95rem;font-family:inherit;background:#fff;color:var(--text);" />
         <select id="hl-campus" class="grade-select" style="flex:1;min-width:150px;"></select>
@@ -1642,6 +1644,11 @@
       <div style="display:flex;gap:8px;flex-wrap:wrap;" id="pin-setting-btns"></div>
     </div>
 
+    <div style="margin-bottom:20px">
+      <div style="font-size:.8rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">📐 校舎ルール設定</div>
+      <div id="rule-settings-area"></div>
+    </div>
+
     <div style="margin-bottom:8px">
       <div style="font-size:.8rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">📱 ホーム画面に追加</div>
       <div id="pwa-install-area">
@@ -1787,7 +1794,7 @@ const GRADES  = ['小学1年生','小学2年生','小学3年生','小学4年生'
 // ════════════════════════════
 //  インメモリキャッシュ（Supabase から起動時にロード）
 // ════════════════════════════
-const _db = { students: [], attendance: [], makeups: [], templates: {}, homework: [], holidays: [], quizTests: [], quizScores: [], studentProfiles: [], studentTests: [], studentConsultations: [] };
+const _db = { students: [], attendance: [], makeups: [], templates: {}, homework: [], holidays: [], quizTests: [], quizScores: [], studentProfiles: [], studentTests: [], studentConsultations: [], campusRules: [] };
 
 // ════════════════════════════
 //  データアクセス（キャッシュ読み書き）
@@ -2386,7 +2393,7 @@ function buildAttRows(students, att, date, context) {
     const gradeTag = s.grade
       ? `<span class="grade-tag">${esc(s.grade)}</span>` : '';
 
-    const hwForgotBadge = hasPrevWeekForgot(s.id, date)
+    const hwForgotBadge = (isRuleEnabled('homework_monday_selfstudy') && hasPrevWeekForgot(s.id, date))
       ? `<span class="hw-forgot-alert">⚠️ 先週 宿題忘れ</span>` : '';
 
     return `
@@ -3187,9 +3194,17 @@ function getPrevWeekForgotStudents(refDate) {
   return getStudents().filter(s => forgotIds.has(s.id));
 }
 
+// 現在の校舎で、指定ルールがONかどうかを返す（設定がなければ既定値）
+function isRuleEnabled(ruleKey, defaultVal = true) {
+  const r = _db.campusRules.find(x => x.campus === CURRENT_CAMPUS && x.ruleKey === ruleKey);
+  return r ? !!r.enabled : defaultVal;
+}
+
 function renderHwForgotCard() {
   const el = document.getElementById('hw-forgot-card');
   if (!el) return;
+  // ルールOFFの校舎ではカードを出さない
+  if (!isRuleEnabled('homework_monday_selfstudy')) { el.style.display = 'none'; return; }
   const today    = todayStr();
   const students = getPrevWeekForgotStudents(today);
   if (!students.length) { el.style.display = 'none'; return; }
@@ -3512,28 +3527,54 @@ function renderHolidayList() {
   }).join('');
 }
 
+// 開始日〜終了日（両端含む）の 'YYYY-MM-DD' 一覧を返す
+function dateRangeList(start, end) {
+  const out = [];
+  const last = new Date(end + 'T00:00:00');
+  let d = new Date(start + 'T00:00:00');
+  let guard = 0;
+  while (d <= last && guard < 400) {   // 念のため最大400日で打ち切り
+    const y  = d.getFullYear();
+    const m  = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    out.push(`${y}-${m}-${dd}`);
+    d.setDate(d.getDate() + 1);
+    guard++;
+  }
+  return out;
+}
+
 async function addHoliday() {
   const dateEl   = document.getElementById('hl-date');
+  const endEl    = document.getElementById('hl-end');
   const memoEl   = document.getElementById('hl-memo');
   const campusEl = document.getElementById('hl-campus');
-  const date     = dateEl.value;
+  const start    = dateEl.value;
+  const end      = (endEl && endEl.value) ? endEl.value : start;  // 終了日が空なら1日だけ
   const memo     = memoEl.value.trim();
   const campus   = campusEl ? campusEl.value : CURRENT_CAMPUS;
 
-  if (!date) { toast('日付を選択してください'); return; }
-  // 同じ日付＋同じ校舎区分の重複だけをチェック
-  if (_db.holidays.some(h => h.date === date && h.campus === campus)) { toast('すでに登録されている日付です'); return; }
+  if (!start) { toast('開始日を選択してください'); return; }
+  if (end < start) { toast('終了日は開始日と同じか、後の日にしてください'); return; }
 
-  const id = uid();
-  const { error } = await _supabase.from('holidays').insert({ id, date, memo: memo || null, campus });
+  const allDates = dateRangeList(start, end);
+  // すでに登録済み（同じ校舎区分）を除いた、新規ぶんだけ登録する
+  const newDates = allDates.filter(dt => !_db.holidays.some(h => h.date === dt && h.campus === campus));
+  if (!newDates.length) { toast('その期間はすでに登録済みです'); return; }
+
+  const newRows = newDates.map(dt => ({ id: uid(), date: dt, memo: memo || null, campus }));
+  const { error } = await _supabase.from('holidays').insert(newRows);
   if (error) { toast('⚠️ 保存できませんでした'); return; }
 
-  _db.holidays.push({ id, date, memo, campus });
+  newRows.forEach(r => _db.holidays.push({ id: r.id, date: r.date, memo: r.memo || '', campus: r.campus }));
   _db.holidays.sort((a,b) => a.date.localeCompare(b.date));
   dateEl.value = '';
+  if (endEl) endEl.value = '';
   memoEl.value = '';
   const campusLabel = campus === '共通' ? '共通' : campus + '校舎';
-  toast(`${date}（${campusLabel}）を休講日に登録しました`);
+  toast(newDates.length === 1
+    ? `${newDates[0]}（${campusLabel}）を休講日に登録しました`
+    : `${start}〜${end}（${campusLabel}・${newDates.length}日間）を休講日に登録しました`);
   renderHolidayList();
   // 集計・表示の再描画
   renderToday();
@@ -4279,7 +4320,55 @@ function openSettings() {
     ? `<button class="btn btn-outline btn-sm" onclick="startPinSetup('change')">PINを変更する</button>
        <button class="btn btn-danger btn-sm" onclick="startPinSetup('remove')">PINを解除する</button>`
     : `<button class="btn btn-primary btn-sm" onclick="startPinSetup('set')">PINを設定する</button>`;
+  renderRuleSettings();
   document.getElementById('settings-modal').classList.add('open');
+}
+
+// ── 校舎ルール設定 ──
+// ここに項目を1行足すだけで、新しいルールを追加できます
+const CAMPUS_RULE_DEFS = [
+  { key: 'homework_monday_selfstudy', label: '宿題忘れ→月曜自習',
+    desc: '前の週に宿題忘れがあった生徒を、今日タブと出席画面でお知らせします（鶴瀬東のみで使う想定）' },
+];
+
+function renderRuleSettings() {
+  const area = document.getElementById('rule-settings-area');
+  if (!area) return;
+  area.innerHTML =
+    `<div style="font-size:.8rem;color:var(--muted);margin-bottom:6px;">
+       いま表示中の <strong>${esc(CURRENT_CAMPUS)}校舎</strong> の設定です。校舎を切り替えると、その校舎の設定に変わります。
+     </div>` +
+    CAMPUS_RULE_DEFS.map(r => {
+      const on = isRuleEnabled(r.key);
+      return `<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-top:1px solid var(--border);">
+        <div style="flex:1;min-width:0;">
+          <div style="font-weight:800;font-size:.9rem;">${esc(r.label)}</div>
+          <div style="font-size:.75rem;color:var(--muted);margin-top:2px;line-height:1.5;">${esc(r.desc)}</div>
+        </div>
+        <button class="btn btn-sm ${on ? 'btn-success' : 'btn-outline'}" style="min-width:62px;flex-shrink:0;"
+          onclick="toggleRule('${r.key}')">${on ? 'ON' : 'OFF'}</button>
+      </div>`;
+    }).join('');
+}
+
+async function toggleRule(ruleKey) {
+  const next = !isRuleEnabled(ruleKey);
+  const existing = _db.campusRules.find(x => x.campus === CURRENT_CAMPUS && x.ruleKey === ruleKey);
+  let error;
+  if (existing) {
+    ({ error } = await _supabase.from('campus_rules').update({ enabled: next }).eq('id', existing.id));
+    if (!error) existing.enabled = next;
+  } else {
+    const id = uid();
+    ({ error } = await _supabase.from('campus_rules').insert({ id, campus: CURRENT_CAMPUS, rule_key: ruleKey, enabled: next }));
+    if (!error) _db.campusRules.push({ id, campus: CURRENT_CAMPUS, ruleKey, enabled: next });
+  }
+  if (error) { toast('⚠️ 保存できませんでした'); return; }
+  renderRuleSettings();
+  // 画面にすぐ反映
+  renderToday();
+  if (document.getElementById('tab-attendance')?.classList.contains('active')) renderAtt();
+  toast(`「${CURRENT_CAMPUS}校舎」のルールを ${next ? 'ON' : 'OFF'} にしました`);
 }
 
 function closeSettings() {
@@ -4411,7 +4500,7 @@ function hideLoading() {
 //  Supabase データロード
 // ════════════════════════════
 async function loadAllData() {
-  const [s, a, m, t, hw, hl, qt, qs, sp, st, sc] = await Promise.all([
+  const [s, a, m, t, hw, hl, qt, qs, sp, st, sc, cr] = await Promise.all([
     _supabase.from('students').select('*').order('created_at'),
     _supabase.from('attendance').select('*'),
     _supabase.from('makeups').select('*'),
@@ -4422,7 +4511,8 @@ async function loadAllData() {
     _supabase.from('quiz_scores').select('*'),
     _supabase.from('student_profiles').select('*'),
     _supabase.from('student_tests').select('*').order('date', { ascending: false }),
-    _supabase.from('student_consultations').select('*').order('date', { ascending: false })
+    _supabase.from('student_consultations').select('*').order('date', { ascending: false }),
+    _supabase.from('campus_rules').select('*')
   ]);
   _db.students    = (s.data || []).map(r => ({ id: r.id, name: r.name, grade: r.grade || '', days: r.days || [], campus: r.campus || '鶴瀬東' }));
   _db.attendance  = (a.data || []).map(r => ({ id: r.id, date: r.date, studentId: r.student_id, status: r.status, time: r.time || undefined, memo: r.memo || undefined }));
@@ -4436,6 +4526,8 @@ async function loadAllData() {
   _db.studentProfiles      = (sp.data || []).map(r => ({ studentId: r.student_id, furigana: r.furigana||'', birthday: r.birthday||'', schoolName: r.school_name||'', enrolledDate: r.enrolled_date||'', siblingsMemo: r.siblings_memo||'', photoUrl: r.photo_url||'', subjects: r.subjects||'', targetSchool1: r.target_school1||'', targetSchool2: r.target_school2||'', goal: r.goal||'', strongSubjects: r.strong_subjects||'', weakSubjects: r.weak_subjects||'', naishinsho: r.naishinsho||'', personality: r.personality||'', healthNotes: r.health_notes||'', freeMemo: r.free_memo||'' }));
   _db.studentTests         = (st.data || []).map(r => ({ id: r.id, studentId: r.student_id, date: r.date, testName: r.test_name, subject: r.subject||'', score: r.score, maxScore: r.max_score, notes: r.notes||'' }));
   _db.studentConsultations = (sc.data || []).map(r => ({ id: r.id, studentId: r.student_id, date: r.date, memo: r.memo||'' }));
+  // 校舎ルール（全校舎ぶん保持。判定は isRuleEnabled で現在校舎ぶんだけ参照）
+  _db.campusRules = (cr.data || []).map(r => ({ id: r.id, campus: r.campus, ruleKey: r.rule_key, enabled: r.enabled }));
 
   // ===== 校舎でフィルタ：いま選択中の校舎のデータだけを画面に出す =====
   // （データベース自体は全校舎ぶん保持したまま、表示だけを切り替える）
