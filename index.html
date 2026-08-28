@@ -1312,7 +1312,7 @@
     <!-- 休講日管理 -->
     <div class="card">
       <div class="card-title">🏖️ 休講日管理</div>
-      <p style="font-size:.83rem;color:var(--muted);margin-bottom:14px;">休講日に設定した日は出席・宿題の入力欄が非表示になり、集計から除外されます。<br>お盆・年末年始などまとめて休む場合は「終了日」も入れると期間ぶんを一括登録できます（1日だけなら終了日は空のままでOK）。</p>
+      <p style="font-size:.83rem;color:var(--muted);margin-bottom:14px;">休講日に設定した日は出席・宿題の入力欄が非表示になり、集計から除外されます。<br>お盆・年末年始などまとめて休む場合は「終了日」も入れると期間ぶんを一括登録できます（1日だけなら終了日は空のままでOK）。<br>下の一覧には<strong>今月以降</strong>の休講日だけ表示されます（過去分は履歴から確認・編集できます）。</p>
       <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center;">
         <input type="date" id="hl-date" title="開始日" style="flex:1;min-width:150px;padding:11px 14px;border:1.5px solid var(--border);border-radius:8px;font-size:1rem;font-family:inherit;background:#fff;color:var(--text);" />
         <span style="font-weight:800;color:var(--muted);flex-shrink:0;">〜</span>
@@ -1323,6 +1323,7 @@
         <button class="btn btn-primary" onclick="addHoliday()" style="white-space:nowrap;flex-shrink:0;">休講日に登録</button>
       </div>
       <div id="holiday-list"><div class="empty"><p>登録された休講日はありません</p></div></div>
+      <button class="btn btn-outline btn-sm" style="margin-top:12px;" onclick="openHolidayHistory()">🗂 過去の休講日を確認・編集</button>
     </div>
 
   </div>
@@ -1736,6 +1737,26 @@
     <div class="pin-pad" id="setup-pad"></div>
     <div class="pin-error" id="ps-error" style="margin-top:8px;"></div>
     <button class="btn btn-outline btn-full" onclick="closePinSetup()" style="margin-top:14px;">キャンセル</button>
+  </div>
+</div>
+
+<!-- ── 休講日 履歴・管理モーダル ── -->
+<div class="overlay" id="holiday-history-modal" onclick="if(event.target===this)closeHolidayHistory()">
+  <div class="modal" style="max-width:560px;max-height:88vh;display:flex;flex-direction:column;padding:0;overflow:hidden;">
+    <div style="padding:20px 20px 0;">
+      <div class="card-title" style="margin-bottom:6px;">🗂 休講日の履歴・管理</div>
+      <p style="font-size:.8rem;color:var(--muted);margin-bottom:12px;">過去も含めた全ての休講日を確認・編集・削除できます（今の校舎ぶん＋共通）。ここで消さない限りデータは残ります。</p>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:12px;">
+        <label style="font-size:.8rem;font-weight:700;color:var(--muted);">月で絞り込み</label>
+        <input type="month" id="hh-month" onchange="renderHolidayHistory()" style="padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.95rem;font-family:inherit;background:#fff;color:var(--text);" />
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('hh-month').value='';renderHolidayHistory()">すべて表示</button>
+      </div>
+    </div>
+    <div id="hh-list" style="flex:1;overflow-y:auto;padding:0 20px;min-height:140px;"></div>
+    <div style="padding:14px 20px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px;background:#fff;flex-wrap:wrap;">
+      <button class="btn btn-outline btn-sm" onclick="closeHolidayHistory();document.getElementById('hl-date')?.focus();">＋ 新しい休講日を追加</button>
+      <button class="btn btn-outline" onclick="closeHolidayHistory()">閉じる</button>
+    </div>
   </div>
 </div>
 
@@ -3503,12 +3524,20 @@ function holidayBannerHTML(holiday) {
 function renderHolidayList() {
   const el = document.getElementById('holiday-list');
   if (!el) return;
-  const list = [..._db.holidays].sort((a,b) => a.date.localeCompare(b.date));
-  if (!list.length) {
-    el.innerHTML = '<div class="empty"><p>登録された休講日はありません</p></div>';
+  const thisMonth = todayStr().slice(0, 7);            // 'YYYY-MM'（今月。今日の日付から自動判定）
+  const all = [..._db.holidays].sort((a,b) => a.date.localeCompare(b.date));
+  const upcoming = all.filter(h => h.date.slice(0, 7) >= thisMonth);   // 今月以降のみ（過去月は隠す）
+  const pastCount = all.length - upcoming.length;
+
+  const pastNote = pastCount
+    ? `<div style="font-size:.78rem;color:var(--muted);margin-top:10px;">過去の休講日 ${pastCount}件は「🗂 過去の休講日を確認・編集」から見られます（データは削除されず残っています）。</div>`
+    : '';
+
+  if (!upcoming.length) {
+    el.innerHTML = `<div class="empty"><p>今月以降の休講日はありません</p></div>` + pastNote;
     return;
   }
-  el.innerHTML = list.map(h => {
+  el.innerHTML = upcoming.map(h => {
     const d  = new Date(h.date + 'T00:00:00');
     const di = dayIdx(h.date);
     const label = `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${DAYS[di]}）`;
@@ -3524,7 +3553,7 @@ function renderHolidayList() {
       </div>
       <button class="btn btn-outline btn-sm" onclick="deleteHoliday('${h.id}')">削除</button>
     </div>`;
-  }).join('');
+  }).join('') + pastNote;
 }
 
 // 開始日〜終了日（両端含む）の 'YYYY-MM-DD' 一覧を返す
@@ -3590,6 +3619,98 @@ async function deleteHoliday(id) {
   if (error) { toast('⚠️ 削除できませんでした'); return; }
   _db.holidays = _db.holidays.filter(h => h.id !== id);
   toast(`${rec.date} の休講日登録を削除しました`);
+  renderHolidayList();
+  if (document.getElementById('holiday-history-modal')?.classList.contains('open')) renderHolidayHistory();
+  renderToday();
+  if (document.getElementById('tab-attendance')?.classList.contains('active')) renderAtt();
+  if (document.getElementById('tab-homework')?.classList.contains('active'))   renderHomework();
+  if (document.getElementById('tab-report')?.classList.contains('active'))     { renderMonthly(); renderReport(); }
+}
+
+// ════════════════════════════
+//  休講日 履歴・管理（過去分の確認・編集・削除）
+//  ※ 追加は既存の「休講日管理」フォーム（addHoliday）を流用。二重に作らない
+// ════════════════════════════
+let _hhEditId = null;
+
+function openHolidayHistory() {
+  _hhEditId = null;
+  const m = document.getElementById('hh-month');
+  if (m) m.value = '';                 // 初期は全期間を表示
+  document.getElementById('holiday-history-modal').classList.add('open');
+  renderHolidayHistory();
+}
+
+function closeHolidayHistory() {
+  _hhEditId = null;
+  document.getElementById('holiday-history-modal').classList.remove('open');
+}
+
+function renderHolidayHistory() {
+  const el = document.getElementById('hh-list');
+  if (!el) return;
+  const month = (document.getElementById('hh-month')?.value || '').trim();   // 'YYYY-MM' or ''
+  let list = [..._db.holidays].sort((a,b) => b.date.localeCompare(a.date));  // 新しい順
+  if (month) list = list.filter(h => h.date.slice(0,7) === month);
+
+  if (!list.length) {
+    el.innerHTML = `<div class="empty" style="padding:24px 10px;"><p>${month ? 'この月の休講日はありません' : '休講日はまだ登録されていません'}</p></div>`;
+    return;
+  }
+
+  el.innerHTML = list.map(h => {
+    const d  = new Date(h.date + 'T00:00:00');
+    const di = dayIdx(h.date);
+    const label = `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${DAYS[di]}）`;
+    const campusRaw = h.campus || '共通';
+    const isCommon  = campusRaw === '共通';
+
+    if (_hhEditId === h.id) {
+      const campusOpts = [CURRENT_CAMPUS, '共通'].map(c =>
+        `<option value="${c}" ${campusRaw === c ? 'selected' : ''}>${c === '共通' ? '共通（両校舎）' : c + '校舎のみ'}</option>`).join('');
+      return `<div class="holiday-item" style="flex-wrap:wrap;gap:8px;">
+        <input type="date" id="hh-edit-date" value="${h.date}" style="padding:8px 10px;border:1.5px solid var(--primary);border-radius:8px;font-size:.9rem;font-family:inherit;" />
+        <input type="text" id="hh-edit-memo" value="${esc(h.memo || '')}" placeholder="理由" maxlength="30" style="flex:1;min-width:110px;padding:8px 10px;border:1.5px solid var(--primary);border-radius:8px;font-size:.9rem;font-family:inherit;" />
+        <select id="hh-edit-campus" class="grade-select" style="padding:8px 10px;">${campusOpts}</select>
+        <button class="btn btn-primary btn-sm" onclick="saveHolidayEdit('${h.id}')">保存</button>
+        <button class="btn btn-outline btn-sm" onclick="_hhEditId=null;renderHolidayHistory()">キャンセル</button>
+      </div>`;
+    }
+
+    const campusBadge = `<span class="school-badge" style="${isCommon ? 'background:#e8f0fe;color:var(--primary);border-color:#c5d5fc;' : ''}">${isCommon ? '🏫 共通' : esc(campusRaw) + '校舎'}</span>`;
+    const memo = h.memo ? `<span class="holiday-memo-label">― ${esc(h.memo)}</span>` : '';
+    return `<div class="holiday-item">
+      <div>
+        <span class="holiday-date-label">${label}</span>
+        ${campusBadge}
+        ${memo}
+      </div>
+      <div style="display:flex;gap:6px;flex-shrink:0;">
+        <button class="btn btn-outline btn-sm" onclick="_hhEditId='${h.id}';renderHolidayHistory()">編集</button>
+        <button class="btn btn-outline btn-sm" onclick="deleteHoliday('${h.id}')">削除</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function saveHolidayEdit(id) {
+  const rec = _db.holidays.find(h => h.id === id);
+  if (!rec) return;
+  const newDate   = document.getElementById('hh-edit-date').value;
+  const newMemo   = document.getElementById('hh-edit-memo').value.trim();
+  const newCampus = document.getElementById('hh-edit-campus').value;
+  if (!newDate) { toast('日付を選択してください'); return; }
+  // 同じ日付＋校舎区分の重複（自分以外）を禁止
+  if (_db.holidays.some(h => h.id !== id && h.date === newDate && h.campus === newCampus)) {
+    toast('その日付（同じ校舎区分）はすでに登録済みです'); return;
+  }
+  const { error } = await _supabase.from('holidays').update({ date: newDate, memo: newMemo || null, campus: newCampus }).eq('id', id);
+  if (error) { toast('⚠️ 保存できませんでした'); return; }
+  rec.date = newDate; rec.memo = newMemo; rec.campus = newCampus;
+  _db.holidays.sort((a,b) => a.date.localeCompare(b.date));
+  _hhEditId = null;
+  toast('休講日を更新しました');
+  renderHolidayHistory();
   renderHolidayList();
   renderToday();
   if (document.getElementById('tab-attendance')?.classList.contains('active')) renderAtt();
