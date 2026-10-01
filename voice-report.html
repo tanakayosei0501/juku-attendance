@@ -1,0 +1,1842 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>授業メモAI</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root {
+  --primary:#1976d2; --primary-dk:#1565c0; --primary-lt:#e3f2fd;
+  --danger:#e53935; --danger-lt:#ffebee;
+  --success:#2e7d32; --success-lt:#e8f5e9;
+  --warn:#f57f17; --warn-lt:#fff8e1;
+  --info:#0288d1;
+  --text:#212121; --muted:#757575; --border:#e0e0e0;
+  --bg:#f5f5f5; --card:#fff;
+  --red:#e53935;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic UI',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;-webkit-tap-highlight-color:transparent}
+#app{min-height:100vh}
+
+/* ── header ── */
+.hdr{background:var(--primary);color:#fff;padding:13px 16px;display:flex;align-items:center;gap:10px;position:sticky;top:0;z-index:100;box-shadow:0 2px 6px rgba(0,0,0,.25)}
+.hdr-title{font-size:1.05rem;font-weight:700;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hdr-btn{background:none;border:none;color:#fff;font-size:1.35rem;cursor:pointer;padding:4px 6px;line-height:1;border-radius:4px}
+.hdr-btn:active{background:rgba(255,255,255,.2)}
+
+/* ── layout ── */
+.main{padding:16px;max-width:600px;margin:0 auto}
+.pb-nav{padding-bottom:72px}
+
+/* ── card ── */
+.card{background:var(--card);border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.1);overflow:hidden;margin-bottom:14px}
+.card-hd{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);padding:12px 16px 0}
+.card-bd{padding:14px 16px}
+
+/* ── buttons ── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;padding:12px 20px;border-radius:9px;border:none;cursor:pointer;font-size:.95rem;font-weight:600;font-family:inherit;transition:opacity .15s,transform .1s;-webkit-user-select:none;user-select:none}
+.btn:active{transform:scale(.96)}
+.btn:disabled{opacity:.45;cursor:default}
+.btn-primary{background:var(--primary);color:#fff}
+.btn-danger{background:var(--danger);color:#fff}
+.btn-success{background:var(--success);color:#fff}
+.btn-outline{background:#fff;color:var(--primary);border:2px solid var(--primary)}
+.btn-ghost{background:transparent;color:var(--muted)}
+.btn-full{width:100%}
+.btn-lg{padding:15px 22px;font-size:1rem;border-radius:11px}
+
+/* ── record button ── */
+.rec-btn{width:76px;height:76px;border-radius:50%;background:var(--red);color:#fff;font-size:2rem;border:none;cursor:pointer;box-shadow:0 4px 14px rgba(229,57,53,.45);display:flex;align-items:center;justify-content:center;transition:transform .12s;flex-shrink:0}
+.rec-btn:active{transform:scale(.90)}
+.rec-btn.pulsing{animation:pulse 1.5s infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 0 rgba(229,57,53,.45)}60%{box-shadow:0 0 0 14px rgba(229,57,53,0)}}
+
+/* ── timer ── */
+.timer{font-size:3.4rem;font-weight:200;font-variant-numeric:tabular-nums;text-align:center;color:var(--red);line-height:1;letter-spacing:.02em}
+.timer.idle{color:var(--border)}
+
+/* ── save banner ── */
+.save-banner{display:flex;align-items:center;gap:8px;padding:11px 14px;background:var(--success-lt);border:2px solid var(--success);border-radius:9px;color:var(--success);font-weight:700;font-size:.9rem}
+
+/* ── status badges ── */
+.badge{display:inline-flex;align-items:center;gap:3px;padding:3px 8px;border-radius:20px;font-size:.7rem;font-weight:700}
+.badge-local{background:var(--success-lt);color:var(--success)}
+.badge-uploading{background:#e3f2fd;color:var(--info)}
+.badge-uploaded{background:#e8f5e9;color:#1b5e20}
+.badge-error{background:var(--danger-lt);color:var(--danger)}
+.badge-pending{background:var(--warn-lt);color:var(--warn)}
+.badge-processing{background:#e3f2fd;color:var(--info)}
+.badge-done{background:var(--success-lt);color:var(--success)}
+.badge-review{background:#fff3e0;color:#e65100}
+.badge-approved{background:var(--success-lt);color:var(--success)}
+.badge-recording{background:var(--danger-lt);color:var(--danger)}
+
+/* ── student grid ── */
+.s-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
+.s-card{background:var(--card);border-radius:11px;padding:15px 10px;text-align:center;cursor:pointer;border:2px solid transparent;transition:border-color .12s,transform .1s;box-shadow:0 1px 4px rgba(0,0,0,.08)}
+.s-card:active{transform:scale(.95)}
+.s-card:hover{border-color:#90caf9}
+.s-avatar{width:46px;height:46px;border-radius:50%;background:var(--primary-lt);color:var(--primary);display:flex;align-items:center;justify-content:center;font-size:1.25rem;font-weight:700;margin:0 auto 8px}
+.s-name{font-weight:700;font-size:.9rem}
+.s-grade{font-size:.72rem;color:var(--muted);margin-top:2px}
+
+/* ── memo list ── */
+.memo-row{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--border)}
+.memo-row:last-child{border-bottom:none}
+.memo-t{font-size:.78rem;color:var(--muted);min-width:38px}
+.memo-d{font-size:.85rem;font-weight:700;min-width:44px;color:var(--text)}
+.memo-info{flex:1;font-size:.78rem;color:var(--muted)}
+.memo-del{background:none;border:none;color:var(--danger);cursor:pointer;padding:4px;font-size:1rem;opacity:.6}
+.memo-del:hover{opacity:1}
+
+/* ── session rows ── */
+.sess-row{display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .1s}
+.sess-row:last-child{border-bottom:none}
+.sess-row:hover{background:#fafafa}
+.sess-name{font-weight:700;flex:1}
+.sess-meta{font-size:.75rem;color:var(--muted)}
+
+/* ── process steps ── */
+.step-row{display:flex;align-items:center;gap:11px;padding:10px 14px;border-radius:8px;background:var(--bg);margin-bottom:6px;font-size:.88rem}
+.step-row.active{background:#e3f2fd}
+.step-row.done{background:var(--success-lt)}
+.step-row.error{background:var(--danger-lt)}
+.step-icon{min-width:22px;text-align:center;font-size:1.1rem}
+
+/* ── login ── */
+.login-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;background:linear-gradient(135deg,#1976d2 0%,#0d47a1 100%)}
+.login-card{background:#fff;border-radius:18px;padding:36px 28px;width:100%;max-width:360px;box-shadow:0 20px 60px rgba(0,0,0,.22)}
+.login-logo{text-align:center;margin-bottom:28px}
+.login-logo .ico{font-size:2.8rem;margin-bottom:6px}
+.login-logo h2{font-size:1.2rem;font-weight:800}
+.login-logo p{color:var(--muted);font-size:.82rem;margin-top:3px}
+
+/* ── forms ── */
+.fgroup{margin-bottom:14px}
+.flabel{display:block;font-size:.82rem;font-weight:600;color:var(--muted);margin-bottom:5px}
+.finput{width:100%;padding:11px 13px;border:2px solid var(--border);border-radius:8px;font-size:.95rem;font-family:inherit;color:var(--text);background:#fff;transition:border-color .15s}
+.finput:focus{outline:none;border-color:var(--primary)}
+textarea.finput{resize:vertical;min-height:110px;line-height:1.6}
+select.finput{cursor:pointer}
+
+/* ── stats ── */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px}
+.stat{background:var(--card);border-radius:9px;padding:11px 6px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+.stat-n{font-size:1.7rem;font-weight:800;line-height:1}
+.stat-l{font-size:.63rem;color:var(--muted);margin-top:1px}
+
+/* ── bottom nav ── */
+.bnav{position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--border);display:flex;z-index:50;max-width:100%}
+.bnav-item{flex:1;display:flex;flex-direction:column;align-items:center;padding:9px 0 6px;cursor:pointer;border:none;background:none;font-family:inherit;color:var(--muted);font-size:.64rem;transition:color .12s}
+.bnav-item.active{color:var(--primary)}
+.bnav-ico{font-size:1.35rem;line-height:1;margin-bottom:2px}
+
+/* ── recording screen ── */
+.rec-screen{min-height:100vh;display:flex;flex-direction:column}
+.rec-info{background:var(--card);padding:18px 16px;text-align:center;border-bottom:1px solid var(--border)}
+.rec-sname{font-size:1.75rem;font-weight:800}
+.rec-smeta{color:var(--muted);font-size:.88rem;margin-top:3px}
+.rec-controls{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px 16px;gap:18px;min-height:240px}
+.rec-hint{font-size:.78rem;color:var(--muted);text-align:center}
+.rec-memos{flex:1;padding:0 16px 16px}
+.rec-end{padding:0 16px 16px}
+
+/* ── report ── */
+.report-text{font-size:.92rem;line-height:1.85;color:var(--text);white-space:pre-wrap}
+
+/* ── toast ── */
+.toast{position:fixed;bottom:84px;left:50%;transform:translateX(-50%);background:rgba(33,33,33,.93);color:#fff;padding:11px 20px;border-radius:22px;font-size:.88rem;z-index:9999;white-space:nowrap;box-shadow:0 4px 14px rgba(0,0,0,.28);animation:tin .22s ease}
+@keyframes tin{from{opacity:0;transform:translateX(-50%) translateY(14px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+
+/* ── alert ── */
+.alert{padding:11px 14px;border-radius:8px;margin-bottom:12px;font-size:.86rem;line-height:1.5}
+.alert-warn{background:var(--warn-lt);color:#b71c1c;border:1px solid #ffcc80}
+.alert-info{background:var(--primary-lt);color:var(--primary-dk);border:1px solid #90caf9}
+.alert-success{background:var(--success-lt);color:#1b5e20;border:1px solid #a5d6a7}
+.alert-err{background:var(--danger-lt);color:var(--danger);border:1px solid #ef9a9a}
+
+/* ── misc ── */
+.divider{height:1px;background:var(--border);margin:14px 0}
+.sec-title{font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin-bottom:8px}
+.spin{width:20px;height:20px;border:2.5px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:sp .7s linear infinite;display:inline-block}
+@keyframes sp{to{transform:rotate(360deg)}}
+.hidden{display:none!important}
+.tc{text-align:center}
+.flex-center{display:flex;align-items:center;justify-content:center;gap:10px}
+.muted{color:var(--muted)}
+.mt8{margin-top:8px}.mt12{margin-top:12px}.mt16{margin-top:16px}
+.mb8{margin-bottom:8px}.mb12{margin-bottom:12px}
+.row{display:flex;align-items:center;gap:10px}
+.row-between{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.gap8{display:flex;flex-direction:column;gap:8px}
+.search-box{width:100%;padding:9px 12px 9px 36px;border:2px solid var(--border);border-radius:8px;font-size:.9rem;font-family:inherit;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' fill='%23757575' viewBox='0 0 16 16'%3E%3Cpath d='M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.099zm-5.242 1.656a5 5 0 1 1 0-10 5 5 0 0 1 0 10z'/%3E%3C/svg%3E") no-repeat 10px center;transition:border-color .15s}
+.search-box:focus{outline:none;border-color:var(--primary)}
+.tab-bar{display:flex;background:var(--card);border-bottom:1px solid var(--border);overflow-x:auto}
+.tab-btn{flex-shrink:0;padding:12px 20px;border:none;background:none;font-family:inherit;font-size:.88rem;font-weight:600;color:var(--muted);cursor:pointer;border-bottom:2.5px solid transparent;transition:color .12s,border-color .12s}
+.tab-btn.active{color:var(--primary);border-bottom-color:var(--primary)}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toasts"></div>
+
+<script>
+// ══════════════════════════════════════════════════════════════════════
+// CONFIG
+// ══════════════════════════════════════════════════════════════════════
+const SUPABASE_URL = 'https://xgisflbaomyplxoiwhda.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_-VyLSUzuHwOQ4mvt0_Z4_g_efv-PMAu';
+const _sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const CAMPUSES = ['鶴瀬東', '羽沢'];
+const GRADES   = ['小学1年生','小学2年生','小学3年生','小学4年生','小学5年生','小学6年生',
+                  '中学1年生','中学2年生','中学3年生','高校1年生','高校2年生','高校3年生'];
+const SUBJECTS = ['数学','英語','国語','理科','社会','算数','その他'];
+
+// ══════════════════════════════════════════════════════════════════════
+// IndexedDB  — audio blobs stored locally first
+// ══════════════════════════════════════════════════════════════════════
+let _idb = null;
+
+async function openIDB() {
+  if (_idb) return _idb;
+  return new Promise((res, rej) => {
+    const req = indexedDB.open('vr-app', 1);
+    req.onupgradeneeded = e => {
+      const db = e.target.result;
+      if (!db.objectStoreNames.contains('memos')) {
+        const s = db.createObjectStore('memos', { keyPath: 'local_id' });
+        s.createIndex('session_id', 'session_id');
+        s.createIndex('upload_status', 'upload_status');
+      }
+    };
+    req.onsuccess  = e => { _idb = e.target.result; res(_idb); };
+    req.onerror    = e => rej(e.target.error);
+  });
+}
+
+function idbRun(mode, storeName, fn) {
+  return new Promise(async (res, rej) => {
+    const db = await openIDB();
+    const tx = db.transaction(storeName, mode);
+    const store = tx.objectStore(storeName);
+    const req = fn(store);
+    if (req && req.onsuccess !== undefined) {
+      req.onsuccess = e => res(e.target.result);
+      req.onerror   = e => rej(e.target.error);
+    } else {
+      tx.oncomplete = () => res();
+      tx.onerror    = e => rej(e.target.error);
+    }
+  });
+}
+
+const idb = {
+  save:   memo   => idbRun('readwrite','memos', s => s.put(memo)),
+  get:    lid    => idbRun('readonly', 'memos', s => s.get(lid)),
+  del:    lid    => idbRun('readwrite','memos', s => s.delete(lid)),
+  getAll: ()     => idbRun('readonly', 'memos', s => s.getAll()),
+  update: async (lid, patch) => {
+    const m = await idb.get(lid);
+    if (m) await idb.save({ ...m, ...patch });
+  },
+  pending: async () => {
+    const all = await idb.getAll();
+    return all.filter(m => m.upload_status === 'local' || m.upload_status === 'error');
+  },
+  forSession: async sid => {
+    const all = await idb.getAll();
+    return all.filter(m => m.session_id === sid);
+  },
+};
+
+// ══════════════════════════════════════════════════════════════════════
+// AudioRecorder
+// ══════════════════════════════════════════════════════════════════════
+class AudioRecorder {
+  constructor() {
+    this.mr = null; this.stream = null;
+    this.chunks = []; this.mimeType = '';
+    this.startAt = null; this._ti = null;
+  }
+
+  getMime() {
+    const candidates = [
+      'audio/ogg;codecs=opus',
+      'audio/webm;codecs=opus',
+      'audio/webm',
+      'audio/mp4',
+    ];
+    if (typeof MediaRecorder === 'undefined') return '';
+    for (const t of candidates) {
+      try { if (MediaRecorder.isTypeSupported(t)) return t; } catch(_){}
+    }
+    return '';
+  }
+
+  async requestPerm() {
+    const s = await navigator.mediaDevices.getUserMedia({ audio: {
+      echoCancellation: true, noiseSuppression: true
+    }});
+    s.getTracks().forEach(t => t.stop());
+    return true;
+  }
+
+  async start() {
+    this.stream = await navigator.mediaDevices.getUserMedia({ audio: {
+      echoCancellation: true, noiseSuppression: true
+    }});
+    this.mimeType = this.getMime();
+    this.chunks = [];
+    this.startAt = Date.now();
+    APP.recSecs = 0;
+
+    const opts = {};
+    if (this.mimeType) opts.mimeType = this.mimeType;
+    this.mr = new MediaRecorder(this.stream, opts);
+    this.mr.ondataavailable = e => { if (e.data.size > 0) this.chunks.push(e.data); };
+    this.mr.start(500);
+
+    clearInterval(this._ti);
+    this._ti = setInterval(() => {
+      APP.recSecs = Math.floor((Date.now() - this.startAt) / 1000);
+      const el = document.getElementById('rec-timer');
+      if (el) el.textContent = fmtTime(APP.recSecs);
+      // Auto-stop at 2 min
+      if (APP.recSecs >= 120) stopAndSave();
+    }, 500);
+  }
+
+  async stop() {
+    clearInterval(this._ti); this._ti = null;
+    const duration = Math.round((Date.now() - this.startAt) / 1000);
+    return new Promise((res, rej) => {
+      this.mr.onstop = () => {
+        const mime = (this.mimeType || 'audio/webm').split(';')[0];
+        const blob = new Blob(this.chunks, { type: mime });
+        if (this.stream) { this.stream.getTracks().forEach(t => t.stop()); this.stream = null; }
+        this.mr = null; this.chunks = [];
+        res({ blob, duration, mimeType: mime });
+      };
+      this.mr.onerror = rej;
+      this.mr.stop();
+    });
+  }
+
+  isRecording() { return !!(this.mr && this.mr.state === 'recording'); }
+}
+
+const recorder = new AudioRecorder();
+
+// ══════════════════════════════════════════════════════════════════════
+// Upload Manager
+// ══════════════════════════════════════════════════════════════════════
+let _uploading = false;
+
+async function uploadMemo(localId) {
+  const m = await idb.get(localId);
+  if (!m || !m.blob) return;
+  if (m.upload_status === 'uploaded') return;
+
+  await idb.update(localId, { upload_status: 'uploading' });
+  refreshMemoStatus(localId, 'uploading');
+
+  const path = `${APP.teacher?.id || 'unknown'}/${m.session_id}/${localId}.${m.mimeType.split('/')[1] || 'webm'}`;
+
+  try {
+    const { error } = await _sb.storage.from('voice-memos').upload(path, m.blob, {
+      contentType: m.mimeType,
+      upsert: false
+    });
+    if (error && !error.message.includes('already exists')) throw error;
+
+    await idb.update(localId, { upload_status: 'uploaded', storage_path: path });
+    await _sb.from('vr_voice_memos').update({ upload_status: 'uploaded', storage_path: path }).eq('local_id', localId);
+    refreshMemoStatus(localId, 'uploaded');
+  } catch(e) {
+    await idb.update(localId, { upload_status: 'error' });
+    refreshMemoStatus(localId, 'error');
+  }
+}
+
+async function syncPending() {
+  if (_uploading) return;
+  _uploading = true;
+  try {
+    const pending = await idb.pending();
+    for (const m of pending) await uploadMemo(m.local_id);
+    const cnt = (await idb.pending()).length;
+    if (cnt > 0) updatePendingBadge(cnt);
+    else updatePendingBadge(0);
+  } finally { _uploading = false; }
+}
+
+function startAutoSync() {
+  window.addEventListener('online', syncPending);
+  setInterval(() => { if (navigator.onLine) syncPending(); }, 30000);
+  if (navigator.onLine) setTimeout(syncPending, 2000);
+}
+
+function refreshMemoStatus(localId, status) {
+  const el = document.getElementById(`ms-${localId}`);
+  if (el) el.outerHTML = memoStatusBadge(status, localId);
+}
+
+function updatePendingBadge(cnt) {
+  const el = document.getElementById('pending-cnt');
+  if (!el) return;
+  el.textContent = cnt > 0 ? cnt : '';
+  el.className   = cnt > 0 ? 'badge badge-warn' : 'hidden';
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// AI Processing
+// ══════════════════════════════════════════════════════════════════════
+async function callGemini(body) {
+  const res = await fetch('/api/gemini', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || 'Gemini API エラー');
+  return data;
+}
+
+function extractText(geminiResp) {
+  return geminiResp?.candidates?.[0]?.content?.parts?.[0]?.text || '';
+}
+
+async function transcribeMemo(localId) {
+  // Get blob from IDB or download from Storage
+  let blob = null; let mimeType = 'audio/webm';
+  const local = await idb.get(localId);
+  if (local?.blob) { blob = local.blob; mimeType = local.mimeType || 'audio/webm'; }
+  else {
+    const { data: row } = await _sb.from('vr_voice_memos').select('storage_path').eq('local_id', localId).single();
+    if (!row?.storage_path) throw new Error('音声ファイルが見つかりません');
+    const { data, error } = await _sb.storage.from('voice-memos').download(row.storage_path);
+    if (error) throw error;
+    blob = data;
+  }
+
+  // Convert blob to base64
+  const ab = await blob.arrayBuffer();
+  const b64 = btoa(String.fromCharCode(...new Uint8Array(ab)));
+
+  const resp = await callGemini({ action: 'transcribe', audio_b64: b64, mime_type: mimeType });
+  return extractText(resp).trim();
+}
+
+async function processSession(sessionId, onStep) {
+  onStep('load', 'active');
+
+  // 1. Load memos
+  const { data: memos } = await _sb.from('vr_voice_memos').select('*').eq('session_id', sessionId).order('recorded_at');
+  if (!memos?.length) throw new Error('この授業に音声メモがありません');
+
+  // Update session status
+  await _sb.from('vr_sessions').update({ status: 'processing', updated_at: new Date().toISOString() }).eq('id', sessionId);
+
+  onStep('load', 'done');
+  onStep('upload', 'active');
+
+  // 2. Ensure all memos are uploaded
+  for (const m of memos) {
+    const local = await idb.get(m.local_id);
+    if (local?.blob && m.upload_status !== 'uploaded') {
+      await uploadMemo(m.local_id);
+    }
+  }
+
+  onStep('upload', 'done');
+  onStep('transcribe', 'active');
+
+  // 3. Transcribe each memo
+  const transcripts = [];
+  for (let i = 0; i < memos.length; i++) {
+    const m = memos[i];
+    try {
+      let tr = m.transcript;
+      if (!tr || m.transcript_status !== 'done') {
+        tr = await transcribeMemo(m.local_id);
+        await _sb.from('vr_voice_memos').update({
+          transcript: tr,
+          transcript_status: 'done'
+        }).eq('id', m.id);
+        await idb.update(m.local_id, { transcript: tr });
+      }
+      transcripts.push(`[メモ${i+1}] ${tr}`);
+    } catch(e) {
+      transcripts.push(`[メモ${i+1}] (文字起こし失敗: ${e.message})`);
+    }
+  }
+
+  const combined = transcripts.join('\n\n');
+  await _sb.from('vr_sessions').update({ combined_transcript: combined }).eq('id', sessionId);
+
+  onStep('transcribe', 'done');
+  onStep('analyze', 'active');
+
+  // 4. Fetch student info
+  const { data: sess } = await _sb.from('vr_sessions')
+    .select('*, vr_students(name, grade)')
+    .eq('id', sessionId).single();
+
+  const studentName = sess?.vr_students?.name || '（不明）';
+  const grade       = sess?.vr_students?.grade || '';
+
+  // 5. AI analysis + report
+  const resp = await callGemini({ action: 'analyze', transcripts: [combined], student_name: studentName, grade });
+  const raw = extractText(resp);
+
+  let analysisData;
+  try { analysisData = JSON.parse(raw); }
+  catch(e) {
+    // Try to extract JSON from markdown code block
+    const match = raw.match(/```json\s*([\s\S]+?)\s*```/) || raw.match(/(\{[\s\S]+\})/);
+    if (match) { try { analysisData = JSON.parse(match[1]); } catch(_) {} }
+  }
+
+  if (!analysisData) throw new Error('AIの応答を解析できませんでした。Gemini APIキーを確認してください。');
+
+  onStep('analyze', 'done');
+  onStep('report', 'active');
+
+  // 6. Save analysis
+  await _sb.from('vr_analysis').upsert({
+    session_id: sessionId,
+    subject:    analysisData.subject,
+    unit:       analysisData.unit,
+    content:    analysisData.analysis,
+    updated_at: new Date().toISOString()
+  }, { onConflict: 'session_id' });
+
+  // 7. Save report
+  await _sb.from('vr_reports').upsert({
+    session_id: sessionId,
+    content:    analysisData.report,
+    status:     'review_pending',
+    updated_at: new Date().toISOString()
+  }, { onConflict: 'session_id' });
+
+  // 8. Update session
+  await _sb.from('vr_sessions').update({
+    status:  'review_pending',
+    subject: analysisData.subject,
+    updated_at: new Date().toISOString()
+  }).eq('id', sessionId);
+
+  onStep('report', 'done');
+  return analysisData;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Supabase Data Layer
+// ══════════════════════════════════════════════════════════════════════
+const DB = {
+  teacher:  null,
+  students: [],
+  sessions: [],
+  reports:  [],
+};
+
+async function loadTeacher() {
+  const { data: { user } } = await _sb.auth.getUser();
+  if (!user) return null;
+  const { data } = await _sb.from('vr_teachers').select('*').eq('auth_user_id', user.id).single();
+  return data;
+}
+
+async function loadStudents(campus) {
+  const q = _sb.from('vr_students').select('*').eq('active', true).order('name');
+  if (campus) q.eq('campus', campus);
+  const { data } = await q;
+  return data || [];
+}
+
+async function loadTodaySessions(teacherId) {
+  const today = new Date().toISOString().slice(0, 10);
+  const { data } = await _sb.from('vr_sessions')
+    .select('*, vr_students(name, grade)')
+    .eq('teacher_id', teacherId)
+    .gte('started_at', today + 'T00:00:00')
+    .lte('started_at', today + 'T23:59:59')
+    .order('started_at', { ascending: false });
+  return data || [];
+}
+
+async function loadUnprocessed(teacherId) {
+  const { data } = await _sb.from('vr_sessions')
+    .select('*, vr_students(name, grade)')
+    .eq('teacher_id', teacherId)
+    .in('status', ['saved', 'recording'])
+    .order('started_at', { ascending: false });
+  return data || [];
+}
+
+async function loadRecentSessions(teacherId, limit = 30) {
+  const { data } = await _sb.from('vr_sessions')
+    .select('*, vr_students(name, grade)')
+    .eq('teacher_id', teacherId)
+    .order('started_at', { ascending: false })
+    .limit(limit);
+  return data || [];
+}
+
+async function createSession(student) {
+  const { data, error } = await _sb.from('vr_sessions').insert({
+    teacher_id: DB.teacher.id,
+    student_id: student.id,
+    campus:     DB.teacher.campus,
+    started_at: new Date().toISOString(),
+    status:     'recording',
+  }).select().single();
+  if (error) throw error;
+  return data;
+}
+
+async function saveMemoToDB(m) {
+  const { error } = await _sb.from('vr_voice_memos').upsert({
+    local_id:     m.local_id,
+    session_id:   m.session_id,
+    recorded_at:  m.recorded_at,
+    duration_sec: m.duration,
+    upload_status: m.upload_status,
+  }, { onConflict: 'local_id' });
+  if (error) throw error;
+}
+
+async function incSessionMemoCount(sessionId, duration) {
+  const { data: s } = await _sb.from('vr_sessions').select('memo_count, total_duration_sec').eq('id', sessionId).single();
+  await _sb.from('vr_sessions').update({
+    memo_count:         (s?.memo_count || 0) + 1,
+    total_duration_sec: (s?.total_duration_sec || 0) + (duration || 0),
+    updated_at:         new Date().toISOString(),
+  }).eq('id', sessionId);
+}
+
+async function endSessionDB(sessionId) {
+  await _sb.from('vr_sessions').update({
+    ended_at:   new Date().toISOString(),
+    status:     'saved',
+    updated_at: new Date().toISOString(),
+  }).eq('id', sessionId);
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// App State
+// ══════════════════════════════════════════════════════════════════════
+const APP = {
+  screen: 'loading',
+  user:   null,
+  teacher: null,
+  // session in progress
+  session: null, student: null, memos: [],
+  // recording
+  recSecs: 0,
+  // screens
+  processList: [],
+  processingId: null,
+  processingSteps: {}, // { stepKey: 'active'|'done'|'error'|'' }
+  currentReport: null,
+  viewSessionId: null,
+  adminTab: 'students',
+  histSessions: [],
+  searchQ: '',
+  allStudents: [],
+};
+
+function go(screen, patch = {}) {
+  Object.assign(APP, { screen }, patch);
+  render();
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Helpers
+// ══════════════════════════════════════════════════════════════════════
+function uid() { return 'memo-' + Date.now().toString(36) + Math.random().toString(36).slice(2); }
+function fmtTime(s) { return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`; }
+function fmtDur(s) { if (!s) return '--'; if (s < 60) return `${Math.round(s)}秒`; return `${Math.floor(s/60)}分${Math.round(s%60)}秒`; }
+function fmtHHMM(iso) { if (!iso) return ''; return new Date(iso).toLocaleTimeString('ja-JP', { hour:'2-digit', minute:'2-digit' }); }
+function fmtDate(iso) { if (!iso) return ''; const d = new Date(iso); return `${d.getMonth()+1}/${d.getDate()}`; }
+function initial(name) { return name ? name.charAt(0) : '?'; }
+
+function toast(msg, dur=2800) {
+  const div = document.createElement('div');
+  div.className = 'toast';
+  div.textContent = msg;
+  const cont = document.getElementById('toasts');
+  cont.appendChild(div);
+  setTimeout(() => div.remove(), dur);
+}
+
+function memoStatusBadge(status, localId) {
+  const map = {
+    local:     '<span class="badge badge-local">✓ 保存済み</span>',
+    uploading: '<span class="badge badge-uploading"><span class="spin" style="width:10px;height:10px;border-width:1.5px"></span> 同期中</span>',
+    uploaded:  '<span class="badge badge-uploaded">🟢 同期済み</span>',
+    error:     '<span class="badge badge-error">⚠ 再試行中</span>',
+  };
+  const badge = map[status] || map.local;
+  return `<span id="ms-${localId}">${badge}</span>`;
+}
+
+function sessionStatusBadge(status) {
+  const map = {
+    recording:     '<span class="badge badge-recording">🔴 録音中</span>',
+    saved:         '<span class="badge badge-local">📁 保存済み</span>',
+    processing:    '<span class="badge badge-processing"><span class="spin" style="width:10px;height:10px;border-width:1.5px"></span> 処理中</span>',
+    review_pending:'<span class="badge badge-review">👁 確認待ち</span>',
+    approved:      '<span class="badge badge-approved">✅ 承認済み</span>',
+    sent:          '<span class="badge badge-approved">📤 送信済み</span>',
+    error:         '<span class="badge badge-error">❌ エラー</span>',
+  };
+  return map[status] || `<span class="badge badge-pending">${status}</span>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Render
+// ══════════════════════════════════════════════════════════════════════
+function render() {
+  const el = document.getElementById('app');
+  const screens = {
+    loading:    renderLoading,
+    login:      renderLogin,
+    onboard:    renderOnboard,
+    dashboard:  renderDashboard,
+    select:     renderSelect,
+    recording:  renderRecording,
+    'process-list': renderProcessList,
+    processing: renderProcessing,
+    report:     renderReport,
+    history:    renderHistory,
+    admin:      renderAdmin,
+  };
+  const fn = screens[APP.screen];
+  el.innerHTML = fn ? fn() : `<div class="main tc mt16">画面が見つかりません: ${APP.screen}</div>`;
+}
+
+function renderLoading() {
+  return `<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:16px">
+    <div class="spin" style="width:40px;height:40px;border-width:4px"></div>
+    <div class="muted">読み込み中…</div>
+  </div>`;
+}
+
+function renderLogin() {
+  return `<div class="login-wrap">
+    <div class="login-card">
+      <div class="login-logo">
+        <div class="ico">🎤</div>
+        <h2>授業メモAI</h2>
+        <p>個別指導塾 授業報告システム</p>
+      </div>
+      <div class="fgroup">
+        <label class="flabel">メールアドレス</label>
+        <input id="li-email" type="email" class="finput" placeholder="sensei@example.com" autocomplete="username">
+      </div>
+      <div class="fgroup">
+        <label class="flabel">パスワード</label>
+        <input id="li-pass" type="password" class="finput" placeholder="パスワード" autocomplete="current-password">
+      </div>
+      <div id="li-err" class="alert alert-err hidden"></div>
+      <button class="btn btn-primary btn-full btn-lg mt8" data-action="login">ログイン</button>
+      <div class="divider"></div>
+      <button class="btn btn-outline btn-full" data-action="show-register">初めての方はアカウント登録</button>
+    </div>
+  </div>`;
+}
+
+function renderOnboard() {
+  return `<div class="login-wrap">
+    <div class="login-card">
+      <div class="login-logo">
+        <div class="ico">👋</div>
+        <h2>初回設定</h2>
+        <p>講師情報を入力してください</p>
+      </div>
+      <div class="fgroup">
+        <label class="flabel">お名前</label>
+        <input id="ob-name" type="text" class="finput" placeholder="山田 花子">
+      </div>
+      <div class="fgroup">
+        <label class="flabel">所属校舎</label>
+        <select id="ob-campus" class="finput">
+          ${CAMPUSES.map(c => `<option>${c}</option>`).join('')}
+        </select>
+      </div>
+      <div class="fgroup">
+        <label class="flabel">権限</label>
+        <select id="ob-role" class="finput">
+          <option value="teacher">講師</option>
+          <option value="admin">管理者（生徒・講師管理が可能）</option>
+        </select>
+      </div>
+      <div id="ob-err" class="alert alert-err hidden"></div>
+      <button class="btn btn-primary btn-full btn-lg mt8" data-action="save-onboard">保存して始める</button>
+    </div>
+  </div>`;
+}
+
+function renderDashboard() {
+  const sess = APP.todaySessions || [];
+  const unproc = sess.filter(s => s.status === 'saved' || s.status === 'recording').length;
+  const review  = sess.filter(s => s.status === 'review_pending').length;
+  const approved = sess.filter(s => s.status === 'approved' || s.status === 'sent').length;
+
+  const rows = sess.map(s => {
+    const st = s.vr_students;
+    return `<div class="sess-row" data-action="view-session" data-val="${s.id}">
+      <div>
+        <div class="sess-name">${st?.name || '不明'}</div>
+        <div class="sess-meta">${fmtHHMM(s.started_at)} · ${s.subject || '科目未定'} · ${s.memo_count || 0}件</div>
+      </div>
+      <div>${sessionStatusBadge(s.status)}</div>
+    </div>`;
+  }).join('') || '<div class="tc muted" style="padding:20px">本日の授業はまだありません</div>';
+
+  const canProcess = unproc > 0;
+
+  return `
+  <div class="hdr">
+    <span style="font-size:1.4rem">🎤</span>
+    <span class="hdr-title">${APP.teacher?.name || ''}の授業</span>
+    <span class="muted" style="font-size:.78rem;color:rgba(255,255,255,.75)">${APP.teacher?.campus || ''}校舎</span>
+    <button class="hdr-btn" data-action="nav-admin" title="設定">⚙️</button>
+  </div>
+  <div class="main pb-nav">
+    <div class="stats">
+      <div class="stat"><div class="stat-n" style="color:var(--primary)">${sess.length}</div><div class="stat-l">本日</div></div>
+      <div class="stat"><div class="stat-n" style="color:var(--warn)">${unproc}</div><div class="stat-l">未処理</div></div>
+      <div class="stat"><div class="stat-n" style="color:#e65100">${review}</div><div class="stat-l">確認待</div></div>
+      <div class="stat"><div class="stat-n" style="color:var(--success)">${approved}</div><div class="stat-l">完了</div></div>
+    </div>
+
+    ${canProcess ? `<button class="btn btn-primary btn-full btn-lg mb12" data-action="go-process">
+      ⚡ 未処理の授業を一括処理（${unproc}件）
+    </button>` : ''}
+
+    ${review > 0 ? `<div class="alert alert-info mb12">📋 <strong>${review}件</strong>の報告書が確認待ちです。</div>` : ''}
+
+    <button class="btn btn-success btn-full btn-lg mb12" data-action="new-session">
+      ▶ 授業を開始する
+    </button>
+
+    <div class="card">
+      <div class="card-hd">本日の授業</div>
+      ${rows}
+    </div>
+  </div>
+  ${renderBottomNav('dashboard')}`;
+}
+
+function renderSelect() {
+  const q = (APP.searchQ || '').toLowerCase();
+  const list = (APP.allStudents || []).filter(s =>
+    !q || s.name.includes(q) || (s.grade || '').includes(q)
+  );
+
+  return `
+  <div class="hdr">
+    <button class="hdr-btn" data-action="go-dashboard">←</button>
+    <span class="hdr-title">生徒を選択</span>
+  </div>
+  <div class="main">
+    <input class="search-box mb12" type="search" placeholder="名前・学年で検索…" value="${APP.searchQ || ''}" id="student-search">
+    ${list.length === 0 ? `<div class="tc muted" style="padding:30px">
+      生徒が登録されていません。<br>
+      <button class="btn btn-outline mt12" data-action="nav-admin">生徒を追加する</button>
+    </div>` : `<div class="s-grid">
+      ${list.map(s => `<div class="s-card" data-action="start-session" data-val="${s.id}">
+        <div class="s-avatar">${initial(s.name)}</div>
+        <div class="s-name">${s.name}</div>
+        <div class="s-grade">${s.grade || ''}</div>
+      </div>`).join('')}
+    </div>`}
+  </div>`;
+}
+
+function renderRecording() {
+  const s = APP.session;
+  const st = APP.student;
+  const memos = APP.memos || [];
+  const isRec = recorder.isRecording();
+
+  const memoRows = memos.map(m => `
+    <div class="memo-row">
+      <span class="memo-t">${fmtHHMM(m.recorded_at)}</span>
+      <span class="memo-d">${fmtDur(m.duration)}</span>
+      <span class="memo-info">${memoStatusBadge(m.upload_status, m.local_id)}</span>
+      <button class="memo-del" data-action="del-memo" data-val="${m.local_id}" title="削除">🗑</button>
+    </div>`).join('');
+
+  return `<div class="rec-screen">
+    <div class="hdr">
+      <button class="hdr-btn" data-action="confirm-end">←</button>
+      <span class="hdr-title">${st?.name || ''}の授業</span>
+      <span class="muted" style="font-size:.75rem;color:rgba(255,255,255,.75)">${fmtHHMM(s?.started_at)}</span>
+    </div>
+
+    <div class="rec-info">
+      <div class="rec-sname">${st?.name || ''}</div>
+      <div class="rec-smeta">${st?.grade || ''} ${s?.subject ? '· ' + s.subject : ''}</div>
+    </div>
+
+    <div class="rec-controls">
+      <div class="timer ${isRec ? '' : 'idle'}" id="rec-timer">${fmtTime(isRec ? APP.recSecs : 0)}</div>
+
+      ${isRec ? `
+        <button class="rec-btn pulsing" data-action="stop-save">⏹</button>
+        <div class="rec-hint">録音中… タップして保存</div>
+      ` : `
+        <button class="rec-btn" data-action="start-rec">⏺</button>
+        <div class="rec-hint">タップして録音開始</div>
+      `}
+
+      ${memos.length > 0 && !isRec ? `<div id="save-banner" class="save-banner">
+        ✓ 保存済み &nbsp;この音声は端末に安全に保存されています
+      </div>` : ''}
+    </div>
+
+    <div class="rec-memos">
+      ${memos.length > 0 ? `<div class="sec-title">📋 今日の音声メモ（${memos.length}件）</div>
+      ${memoRows}` : ''}
+    </div>
+
+    <div class="rec-end">
+      <button class="btn btn-outline btn-full btn-lg" data-action="end-session">授業終了</button>
+      <div class="muted tc mt8" style="font-size:.75rem">授業終了後、まとめてAI処理できます</div>
+    </div>
+  </div>`;
+}
+
+function renderProcessList() {
+  const list = APP.processList || [];
+
+  const rows = list.map(s => {
+    const st = s.vr_students;
+    return `<div class="card">
+      <div class="card-bd">
+        <div class="row-between mb8">
+          <div>
+            <div style="font-weight:700;font-size:1rem">${st?.name || '不明'}</div>
+            <div class="muted" style="font-size:.78rem">${fmtDate(s.started_at)} ${fmtHHMM(s.started_at)} · ${s.memo_count||0}件の音声</div>
+          </div>
+          ${sessionStatusBadge(s.status)}
+        </div>
+        <div class="row" style="gap:8px">
+          <button class="btn btn-primary" style="flex:1" data-action="process-one" data-val="${s.id}">▶ この授業を処理</button>
+          <button class="btn btn-ghost" data-action="view-session" data-val="${s.id}">詳細</button>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+
+  return `
+  <div class="hdr">
+    <button class="hdr-btn" data-action="go-dashboard">←</button>
+    <span class="hdr-title">授業を処理</span>
+  </div>
+  <div class="main pb-nav">
+    ${list.length > 1 ? `<button class="btn btn-primary btn-full btn-lg mb12" data-action="process-all">
+      ⚡ 全${list.length}件をまとめて処理
+    </button>` : ''}
+    ${list.length === 0 ? `<div class="tc muted" style="padding:40px">
+      未処理の授業はありません
+    </div>` : rows}
+  </div>
+  ${renderBottomNav('process')}`;
+}
+
+function renderProcessing() {
+  const steps = [
+    { key: 'load',       label: '音声メモを読み込み中…',     icon: '📂' },
+    { key: 'upload',     label: 'サーバーへアップロード中…', icon: '☁️' },
+    { key: 'transcribe', label: 'Geminiが文字起こし中…',    icon: '✏️' },
+    { key: 'analyze',    label: 'AI授業分析中…',            icon: '🔍' },
+    { key: 'report',     label: '保護者報告書を生成中…',     icon: '📝' },
+  ];
+  const S = APP.processingSteps || {};
+
+  const sname = APP.processingStudentName || '授業';
+
+  const rows = steps.map(step => {
+    const st = S[step.key] || '';
+    return `<div class="step-row ${st}" id="step-${step.key}">
+      <span class="step-icon">${st === 'done' ? '✅' : st === 'error' ? '❌' : st === 'active' ? '<span class="spin" style="width:18px;height:18px;border-width:2px"></span>' : step.icon}</span>
+      <span>${step.label}</span>
+    </div>`;
+  }).join('');
+
+  const allDone = steps.every(s => S[s.key] === 'done');
+
+  return `
+  <div class="hdr">
+    <span class="hdr-title">処理中: ${sname}</span>
+  </div>
+  <div class="main">
+    <div class="card">
+      <div class="card-hd">処理ステップ</div>
+      <div class="card-bd gap8">${rows}</div>
+    </div>
+    ${allDone ? `<button class="btn btn-success btn-full btn-lg mt16" data-action="go-report">
+      📋 報告書を確認する
+    </button>` : `<div class="tc muted mt16" style="font-size:.84rem">
+      処理が終わるとここに結果が表示されます
+    </div>`}
+    ${APP.processingError ? `<div class="alert alert-err mt12">❌ ${APP.processingError}</div>` : ''}
+  </div>`;
+}
+
+function renderReport() {
+  const rep = APP.currentReport;
+  if (!rep) return `<div class="main">報告書が見つかりません</div>`;
+
+  const isEditing = APP.reportEditing;
+  const content = isEditing ? (rep.edited_content || rep.content) : (rep.edited_content || rep.content);
+  const sess = APP.viewSession;
+  const an = APP.currentAnalysis;
+
+  return `
+  <div class="hdr">
+    <button class="hdr-btn" data-action="back-from-report">←</button>
+    <span class="hdr-title">報告書確認</span>
+    ${rep.status === 'review_pending' ? `<button class="hdr-btn" data-action="approve-report" data-val="${rep.id}">✅</button>` : ''}
+  </div>
+  <div class="main pb-nav">
+    <div class="row-between mb8">
+      <div>
+        <div style="font-weight:700">${sess?.vr_students?.name || ''}</div>
+        <div class="muted" style="font-size:.78rem">${fmtDate(sess?.started_at)} ${fmtHHMM(sess?.started_at)} · ${an?.subject || ''} ${an?.unit ? '/ ' + an.unit : ''}</div>
+      </div>
+      ${sessionStatusBadge(rep.status)}
+    </div>
+
+    ${an?.content ? `<div class="card">
+      <div class="card-hd">AI分析サマリー</div>
+      <div class="card-bd" style="font-size:.84rem">
+        <div class="mb8"><strong>内容:</strong> ${an.content.content || ''}</div>
+        ${an.content.achievements?.length ? `<div class="mb8"><strong>✅ できたこと:</strong><br>${an.content.achievements.map(a=>`• ${a}`).join('<br>')}</div>` : ''}
+        ${an.content.issues?.length ? `<div class="mb8"><strong>📌 今後の課題:</strong><br>${an.content.issues.map(a=>`• ${a}`).join('<br>')}</div>` : ''}
+        ${an.content.next_steps?.length ? `<div><strong>▶ 次回指導:</strong><br>${an.content.next_steps.map(a=>`• ${a}`).join('<br>')}</div>` : ''}
+      </div>
+    </div>` : ''}
+
+    <div class="card">
+      <div class="card-hd">保護者向け報告書</div>
+      <div class="card-bd">
+        ${isEditing ? `<textarea class="finput" id="rep-edit-txt" rows="12">${content}</textarea>
+          <div class="row mt8">
+            <button class="btn btn-primary" style="flex:1" data-action="save-edit">保存</button>
+            <button class="btn btn-ghost" data-action="cancel-edit">キャンセル</button>
+          </div>` :
+          `<div class="report-text">${content}</div>
+          <div class="row mt12">
+            <button class="btn btn-outline" data-action="edit-report">✏️ 編集</button>
+            <button class="btn btn-outline" data-action="ai-revise">🤖 AI修正</button>
+          </div>`
+        }
+      </div>
+    </div>
+
+    ${rep.status === 'review_pending' ? `<button class="btn btn-success btn-full btn-lg mb8" data-action="approve-report" data-val="${rep.id}">
+      ✅ 承認する
+    </button>` : ''}
+
+    ${rep.status === 'approved' || rep.status === 'review_pending' ? `<button class="btn btn-outline btn-full mb8" data-action="copy-report" data-val="${rep.id}">
+      📋 報告文をコピー
+    </button>` : ''}
+
+    ${APP.aiReviseMode ? `<div class="card">
+      <div class="card-bd">
+        <div class="sec-title mb8">AIへの修正依頼</div>
+        <textarea class="finput" id="ai-revise-txt" rows="3" placeholder="例: もっと短く&#10;英語の内容を詳しく&#10;課題の表現を柔らかく"></textarea>
+        <div class="row mt8">
+          <button class="btn btn-primary" style="flex:1" data-action="do-ai-revise">修正依頼を送る</button>
+          <button class="btn btn-ghost" data-action="cancel-ai-revise">キャンセル</button>
+        </div>
+      </div>
+    </div>` : ''}
+
+    ${APP.transcripts ? `<details class="card mt8">
+      <summary style="padding:12px 16px;cursor:pointer;font-size:.84rem;font-weight:600;color:var(--muted)">📄 文字起こし原文を見る</summary>
+      <div class="card-bd" style="font-size:.8rem;white-space:pre-wrap;color:var(--muted)">${APP.transcripts}</div>
+    </details>` : ''}
+  </div>
+  ${renderBottomNav('history')}`;
+}
+
+function renderHistory() {
+  const list = APP.histSessions || [];
+  const rows = list.map(s => {
+    const st = s.vr_students;
+    return `<div class="sess-row" data-action="view-session" data-val="${s.id}">
+      <div class="s-avatar" style="width:38px;height:38px;font-size:1rem;flex-shrink:0">${initial(st?.name)}</div>
+      <div style="flex:1">
+        <div class="sess-name">${st?.name || '不明'}</div>
+        <div class="sess-meta">${fmtDate(s.started_at)} ${fmtHHMM(s.started_at)} · ${s.subject || '科目未定'} · ${s.memo_count||0}件</div>
+      </div>
+      ${sessionStatusBadge(s.status)}
+    </div>`;
+  }).join('') || '<div class="tc muted" style="padding:30px">授業履歴はありません</div>';
+
+  return `
+  <div class="hdr">
+    <span class="hdr-title">授業履歴</span>
+  </div>
+  <div class="main pb-nav">
+    <div class="card">${rows}</div>
+  </div>
+  ${renderBottomNav('history')}`;
+}
+
+function renderAdmin() {
+  const tab = APP.adminTab || 'students';
+  const isAdmin = APP.teacher?.role === 'admin';
+
+  return `
+  <div class="hdr">
+    <button class="hdr-btn" data-action="go-dashboard">←</button>
+    <span class="hdr-title">管理 · 設定</span>
+  </div>
+  <div class="tab-bar">
+    <button class="tab-btn ${tab==='students'?'active':''}" data-action="admin-tab" data-val="students">生徒</button>
+    ${isAdmin ? `<button class="tab-btn ${tab==='teachers'?'active':''}" data-action="admin-tab" data-val="teachers">講師</button>` : ''}
+    <button class="tab-btn ${tab==='settings'?'active':''}" data-action="admin-tab" data-val="settings">設定</button>
+    <button class="tab-btn ${tab==='account'?'active':''}" data-action="admin-tab" data-val="account">アカウント</button>
+  </div>
+  <div class="main pb-nav">
+    ${tab === 'students' ? renderAdminStudents() : ''}
+    ${tab === 'teachers' && isAdmin ? renderAdminTeachers() : ''}
+    ${tab === 'settings' ? renderAdminSettings() : ''}
+    ${tab === 'account' ? renderAdminAccount() : ''}
+  </div>
+  ${renderBottomNav('admin')}`;
+}
+
+function renderAdminStudents() {
+  const list = APP.allStudents || [];
+  const active = list.filter(s => s.active !== false);
+  return `
+  <button class="btn btn-primary btn-full mb12" data-action="add-student">＋ 生徒を追加</button>
+  ${APP.addingStudent ? renderAddStudentForm() : ''}
+  <div class="card">
+    ${active.length === 0 ? '<div class="tc muted" style="padding:20px">生徒が登録されていません</div>' :
+      active.map(s => `<div class="sess-row">
+        <div class="s-avatar" style="width:36px;height:36px;font-size:.95rem;flex-shrink:0">${initial(s.name)}</div>
+        <div style="flex:1">
+          <div style="font-weight:700">${s.name}</div>
+          <div class="muted" style="font-size:.75rem">${s.grade || ''} · ${s.campus || ''}校舎</div>
+        </div>
+        <button class="btn btn-ghost" style="font-size:.8rem;padding:6px 10px" data-action="edit-student" data-val="${s.id}">編集</button>
+      </div>`).join('')
+    }
+  </div>`;
+}
+
+function renderAddStudentForm() {
+  const editing = APP.editingStudent;
+  const s = editing || {};
+  return `<div class="card mb12">
+    <div class="card-hd">${editing ? '生徒を編集' : '生徒を追加'}</div>
+    <div class="card-bd">
+      <div class="fgroup"><label class="flabel">名前 *</label><input id="ns-name" type="text" class="finput" value="${s.name||''}" placeholder="山田 太郎"></div>
+      <div class="fgroup"><label class="flabel">学年</label><select id="ns-grade" class="finput">
+        <option value="">（未設定）</option>
+        ${GRADES.map(g => `<option ${s.grade===g?'selected':''}>${g}</option>`).join('')}
+      </select></div>
+      <div class="fgroup"><label class="flabel">校舎</label><select id="ns-campus" class="finput">
+        ${CAMPUSES.map(c => `<option ${(s.campus||APP.teacher?.campus)===c?'selected':''}>${c}</option>`).join('')}
+      </select></div>
+      <div class="fgroup"><label class="flabel">保護者名</label><input id="ns-parent" type="text" class="finput" value="${s.parent_name||''}" placeholder="山田 一郎"></div>
+      <div class="fgroup"><label class="flabel">連絡先（LINE/電話など）</label><input id="ns-contact" type="text" class="finput" value="${s.parent_contact||''}" placeholder="LINE ID など"></div>
+      <div class="fgroup"><label class="flabel">メモ</label><textarea id="ns-notes" class="finput" rows="2">${s.notes||''}</textarea></div>
+      <div class="row mt8">
+        <button class="btn btn-primary" style="flex:1" data-action="${editing?'update-student':'save-student'}" ${editing?`data-val="${editing.id}"`:''}>保存</button>
+        ${editing ? `<button class="btn btn-danger" data-action="deactivate-student" data-val="${editing.id}">退塾</button>` : ''}
+        <button class="btn btn-ghost" data-action="cancel-student">キャンセル</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderAdminTeachers() {
+  const list = APP.allTeachers || [];
+  return `
+  <button class="btn btn-primary btn-full mb12" data-action="add-teacher">＋ 講師を追加</button>
+  ${APP.addingTeacher ? renderAddTeacherForm() : ''}
+  <div class="card">
+    ${list.map(t => `<div class="sess-row">
+      <div style="flex:1">
+        <div style="font-weight:700">${t.name} ${t.role==='admin'?'<span class="badge badge-review">管理者</span>':''}</div>
+        <div class="muted" style="font-size:.75rem">${t.campus || ''}校舎 · ${t.active?'在籍':'退職'}</div>
+      </div>
+    </div>`).join('') || '<div class="tc muted" style="padding:20px">講師が登録されていません</div>'}
+  </div>`;
+}
+
+function renderAddTeacherForm() {
+  return `<div class="card mb12">
+    <div class="card-hd">講師を追加</div>
+    <div class="card-bd">
+      <div class="alert alert-info mb12">新しい講師にSupabase Authentication でアカウントを作成してもらい、初回ログイン後に名前と校舎を設定するよう案内してください。</div>
+      <button class="btn btn-ghost btn-full" data-action="cancel-teacher">閉じる</button>
+    </div>
+  </div>`;
+}
+
+function renderAdminSettings() {
+  return `<div class="card">
+    <div class="card-hd">API設定</div>
+    <div class="card-bd">
+      <div class="alert alert-info mb12">
+        <strong>Gemini APIキー</strong> の設定は、Vercel ダッシュボード → プロジェクト → Settings → Environment Variables で<br>
+        キー名: <code>GEMINI_API_KEY</code><br>
+        値: Google AI Studio で取得したAPIキー<br>
+        を設定してください。設定後、Vercel を再デプロイすると反映されます。
+      </div>
+      <div id="gemini-test-result"></div>
+      <button class="btn btn-outline btn-full" data-action="test-gemini">接続テスト</button>
+    </div>
+  </div>
+  <div class="card mt8">
+    <div class="card-hd">データ管理</div>
+    <div class="card-bd">
+      <div class="muted" style="font-size:.84rem">処理済みの授業音声を削除してストレージを節約できます。文字起こし・報告書は保持されます。</div>
+    </div>
+  </div>`;
+}
+
+function renderAdminAccount() {
+  return `<div class="card">
+    <div class="card-hd">アカウント情報</div>
+    <div class="card-bd">
+      <div class="mb8"><span class="muted">名前:</span> ${APP.teacher?.name || ''}</div>
+      <div class="mb8"><span class="muted">校舎:</span> ${APP.teacher?.campus || ''}校舎</div>
+      <div class="mb8"><span class="muted">権限:</span> ${APP.teacher?.role === 'admin' ? '管理者' : '講師'}</div>
+      <div class="mb8"><span class="muted">メール:</span> ${APP.user?.email || ''}</div>
+    </div>
+  </div>
+  <button class="btn btn-danger btn-full mt12" data-action="logout">ログアウト</button>`;
+}
+
+function renderBottomNav(active) {
+  const items = [
+    { key: 'dashboard', icon: '🏠', label: 'ホーム',    action: 'go-dashboard' },
+    { key: 'record',    icon: '⏺',  label: '授業開始',   action: 'new-session'  },
+    { key: 'process',   icon: '⚡',  label: '処理',       action: 'go-process'   },
+    { key: 'history',   icon: '📋',  label: '履歴',       action: 'nav-history'  },
+    { key: 'admin',     icon: '⚙️', label: '管理',       action: 'nav-admin'    },
+  ];
+  return `<div class="bnav">${items.map(i =>
+    `<button class="bnav-item ${active===i.key?'active':''}" data-action="${i.action}">
+      <span class="bnav-ico">${i.icon}</span>${i.label}
+    </button>`).join('')}</div>`;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Actions (event delegation)
+// ══════════════════════════════════════════════════════════════════════
+document.addEventListener('click', async e => {
+  const t = e.target.closest('[data-action]');
+  if (!t) return;
+  const action = t.dataset.action;
+  const val    = t.dataset.val;
+  await handleAction(action, val, t);
+});
+
+document.addEventListener('input', e => {
+  if (e.target.id === 'student-search') {
+    APP.searchQ = e.target.value;
+    const grid = document.querySelector('.s-grid') || document.querySelector('.main > div:last-child');
+    // Re-render just the student grid portion
+    const q = APP.searchQ.toLowerCase();
+    const list = (APP.allStudents || []).filter(s =>
+      !q || s.name.includes(q) || (s.grade || '').includes(q)
+    );
+    const gridEl = document.querySelector('.s-grid');
+    if (gridEl) {
+      gridEl.innerHTML = list.map(s => `<div class="s-card" data-action="start-session" data-val="${s.id}">
+        <div class="s-avatar">${initial(s.name)}</div>
+        <div class="s-name">${s.name}</div>
+        <div class="s-grade">${s.grade || ''}</div>
+      </div>`).join('');
+    }
+  }
+});
+
+async function handleAction(action, val, target) {
+  switch(action) {
+
+    case 'login': await doLogin(); break;
+    case 'logout': await doLogout(); break;
+    case 'show-register': showRegister(); break;
+
+    case 'save-onboard': await saveOnboard(); break;
+
+    case 'go-dashboard':
+      APP.todaySessions = await loadTodaySessions(APP.teacher.id);
+      go('dashboard');
+      break;
+
+    case 'new-session':
+      APP.allStudents = await loadStudents(APP.teacher?.campus);
+      APP.searchQ = '';
+      go('select');
+      break;
+
+    case 'start-session': await startSession(val); break;
+
+    case 'start-rec': await startRec(); break;
+    case 'stop-save': await stopAndSave(); break;
+    case 'end-session': await endSession(); break;
+    case 'confirm-end':
+      if (recorder.isRecording()) {
+        if (!confirm('録音中です。保存せずに戻りますか？')) return;
+        recorder.mr?.stop?.();
+        clearInterval(recorder._ti);
+      }
+      go('dashboard');
+      break;
+
+    case 'del-memo': await deleteMemo(val); break;
+
+    case 'go-process':
+      APP.processList = await loadUnprocessed(APP.teacher.id);
+      go('process-list');
+      break;
+
+    case 'process-one': await processOne(val); break;
+    case 'process-all': await processAll(); break;
+    case 'go-report': await showReport(APP.processingSessionId); break;
+
+    case 'view-session': await viewSession(val); break;
+
+    case 'approve-report': await approveReport(val); break;
+    case 'copy-report': copyReport(); break;
+    case 'edit-report': APP.reportEditing = true; render(); break;
+    case 'cancel-edit': APP.reportEditing = false; render(); break;
+    case 'save-edit': await saveReportEdit(); break;
+    case 'ai-revise': APP.aiReviseMode = true; render(); break;
+    case 'cancel-ai-revise': APP.aiReviseMode = false; render(); break;
+    case 'do-ai-revise': await doAiRevise(); break;
+    case 'back-from-report':
+      APP.currentReport = null; APP.reportEditing = false; APP.aiReviseMode = false;
+      APP.histSessions = await loadRecentSessions(APP.teacher.id);
+      go('history');
+      break;
+
+    case 'nav-history':
+      APP.histSessions = await loadRecentSessions(APP.teacher.id);
+      go('history');
+      break;
+
+    case 'nav-admin':
+      APP.adminTab = 'students';
+      APP.allStudents = await loadStudents(APP.teacher?.campus);
+      if (APP.teacher?.role === 'admin') {
+        const { data } = await _sb.from('vr_teachers').select('*').order('name');
+        APP.allTeachers = data || [];
+      }
+      go('admin');
+      break;
+
+    case 'admin-tab':
+      APP.adminTab = val;
+      APP.addingStudent = false;
+      APP.editingStudent = null;
+      render();
+      break;
+
+    case 'add-student': APP.addingStudent = true; APP.editingStudent = null; render(); break;
+    case 'cancel-student': APP.addingStudent = false; APP.editingStudent = null; render(); break;
+    case 'save-student': await saveStudent(); break;
+    case 'edit-student': await editStudent(val); break;
+    case 'update-student': await updateStudent(val); break;
+    case 'deactivate-student': await deactivateStudent(val); break;
+
+    case 'add-teacher': APP.addingTeacher = true; render(); break;
+    case 'cancel-teacher': APP.addingTeacher = false; render(); break;
+
+    case 'test-gemini': await testGemini(); break;
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Auth
+// ══════════════════════════════════════════════════════════════════════
+async function doLogin() {
+  const email = document.getElementById('li-email')?.value?.trim();
+  const pass  = document.getElementById('li-pass')?.value;
+  const err   = document.getElementById('li-err');
+  if (!email || !pass) { showErr(err, 'メールアドレスとパスワードを入力してください'); return; }
+
+  const btn = document.querySelector('[data-action="login"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'ログイン中…'; }
+
+  const { data, error } = await _sb.auth.signInWithPassword({ email, password: pass });
+  if (error) { showErr(err, 'ログインできませんでした。メールアドレスとパスワードを確認してください。'); if(btn){btn.disabled=false;btn.textContent='ログイン';} return; }
+
+  APP.user = data.user;
+  await afterLogin();
+}
+
+function showRegister() {
+  const html = `<div class="login-wrap">
+    <div class="login-card">
+      <div class="login-logo"><div class="ico">🎤</div><h2>アカウント登録</h2></div>
+      <div class="fgroup"><label class="flabel">メールアドレス</label><input id="reg-email" type="email" class="finput" placeholder="sensei@example.com"></div>
+      <div class="fgroup"><label class="flabel">パスワード（8文字以上）</label><input id="reg-pass" type="password" class="finput" placeholder="パスワード"></div>
+      <div id="reg-err" class="alert alert-err hidden"></div>
+      <button class="btn btn-primary btn-full btn-lg mt8" id="reg-btn" onclick="doRegister()">登録する</button>
+      <button class="btn btn-ghost btn-full mt8" onclick="document.getElementById('app').innerHTML='';go('login')">← ログインに戻る</button>
+    </div>
+  </div>`;
+  document.getElementById('app').innerHTML = html;
+}
+
+window.doRegister = async function() {
+  const email = document.getElementById('reg-email')?.value?.trim();
+  const pass  = document.getElementById('reg-pass')?.value;
+  const err   = document.getElementById('reg-err');
+  const btn   = document.getElementById('reg-btn');
+  if (!email || !pass) { showErr(err, 'すべての項目を入力してください'); return; }
+  if (pass.length < 8) { showErr(err, 'パスワードは8文字以上にしてください'); return; }
+  btn.disabled = true; btn.textContent = '登録中…';
+  const { data, error } = await _sb.auth.signUp({ email, password: pass });
+  if (error) { showErr(err, error.message); btn.disabled=false; btn.textContent='登録する'; return; }
+  APP.user = data.user;
+  go('onboard');
+};
+
+async function doLogout() {
+  await _sb.auth.signOut();
+  APP.user = null; APP.teacher = null;
+  go('login');
+}
+
+async function saveOnboard() {
+  const name   = document.getElementById('ob-name')?.value?.trim();
+  const campus = document.getElementById('ob-campus')?.value;
+  const role   = document.getElementById('ob-role')?.value;
+  const err    = document.getElementById('ob-err');
+  if (!name) { showErr(err, '名前を入力してください'); return; }
+
+  const btn = document.querySelector('[data-action="save-onboard"]');
+  if (btn) btn.disabled = true;
+
+  const { data: existing } = await _sb.from('vr_teachers').select('id').eq('auth_user_id', APP.user.id).single();
+  if (existing) {
+    await _sb.from('vr_teachers').update({ name, campus, role }).eq('auth_user_id', APP.user.id);
+  } else {
+    await _sb.from('vr_teachers').insert({ auth_user_id: APP.user.id, name, campus, role });
+  }
+
+  await afterLogin();
+}
+
+async function afterLogin() {
+  const teacher = await loadTeacher();
+  if (!teacher) { go('onboard'); return; }
+  APP.teacher = teacher;
+  DB.teacher  = teacher;
+  APP.todaySessions = await loadTodaySessions(teacher.id);
+  APP.allStudents   = await loadStudents(teacher.campus);
+  startAutoSync();
+  checkPendingUploads();
+  go('dashboard');
+}
+
+async function checkPendingUploads() {
+  const pending = await idb.pending();
+  if (pending.length > 0) {
+    toast(`${pending.length}件の未同期音声があります。自動的にアップロードします。`);
+    syncPending();
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Session & Recording
+// ══════════════════════════════════════════════════════════════════════
+async function startSession(studentId) {
+  const student = (APP.allStudents || []).find(s => s.id === studentId);
+  if (!student) { toast('生徒が見つかりません'); return; }
+
+  go('loading');
+  try {
+    const sess = await createSession(student);
+    APP.session = sess;
+    APP.student = student;
+    APP.memos   = [];
+
+    // Request mic permission
+    try { await recorder.requestPerm(); } catch(e) {
+      alert('マイクへのアクセスを許可してください。設定 → プライバシー → マイク から許可できます。');
+    }
+
+    go('recording');
+  } catch(e) {
+    toast('授業の開始に失敗しました: ' + e.message);
+    go('dashboard');
+  }
+}
+
+async function startRec() {
+  try {
+    await recorder.start();
+    // Update UI without full re-render
+    const btn = document.querySelector('[data-action="start-rec"]');
+    if (btn) {
+      btn.dataset.action = 'stop-save';
+      btn.classList.add('pulsing');
+      btn.textContent = '⏹';
+    }
+    const hint = document.querySelector('.rec-hint');
+    if (hint) hint.textContent = '録音中… タップして保存';
+    const timer = document.getElementById('rec-timer');
+    if (timer) timer.className = 'timer';
+    const banner = document.getElementById('save-banner');
+    if (banner) banner.remove();
+  } catch(e) {
+    toast('録音を開始できませんでした: ' + e.message);
+  }
+}
+
+async function stopAndSave() {
+  if (!recorder.isRecording()) return;
+  try {
+    const { blob, duration, mimeType } = await recorder.stop();
+    const localId   = uid();
+    const recordedAt = new Date().toISOString();
+
+    // Save to IndexedDB FIRST — instant
+    const memoData = {
+      local_id:     localId,
+      session_id:   APP.session.id,
+      blob,
+      mimeType,
+      duration,
+      recorded_at:  recordedAt,
+      upload_status: 'local',
+    };
+    await idb.save(memoData);
+
+    APP.memos.push({ ...memoData });
+
+    // Save record to Supabase DB (metadata only)
+    try {
+      await saveMemoToDB({ local_id: localId, session_id: APP.session.id, recorded_at: recordedAt, duration, upload_status: 'local' });
+      await incSessionMemoCount(APP.session.id, duration);
+    } catch(e) { /* metadata save failed, local data still safe */ }
+
+    // Full re-render to show saved state
+    go('recording');
+    toast('✓ 保存済み ― この音声は端末に安全に保存されています');
+
+    // Background upload
+    uploadMemo(localId);
+
+  } catch(e) {
+    toast('保存に失敗しました: ' + e.message);
+    render();
+  }
+}
+
+async function endSession() {
+  if (recorder.isRecording()) {
+    if (!confirm('録音中です。録音を保存して授業を終了しますか？')) return;
+    await stopAndSave();
+  }
+  if (!APP.session) { go('dashboard'); return; }
+
+  await endSessionDB(APP.session.id);
+  const sessionId = APP.session.id;
+  APP.session = null; APP.student = null; APP.memos = [];
+  APP.todaySessions = await loadTodaySessions(APP.teacher.id);
+  APP.processList = await loadUnprocessed(APP.teacher.id);
+  toast('授業を終了しました');
+
+  // Navigate to process list if there are unprocessed sessions
+  if (APP.processList.length > 0) go('process-list');
+  else go('dashboard');
+}
+
+async function deleteMemo(localId) {
+  if (!confirm('この音声メモを削除しますか？')) return;
+
+  await idb.del(localId);
+  APP.memos = APP.memos.filter(m => m.local_id !== localId);
+  await _sb.from('vr_voice_memos').delete().eq('local_id', localId);
+  render();
+  toast('削除しました');
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Processing
+// ══════════════════════════════════════════════════════════════════════
+async function processOne(sessionId) {
+  const sess = (APP.processList || []).find(s => s.id === sessionId);
+  APP.processingSessionId   = sessionId;
+  APP.processingStudentName = sess?.vr_students?.name || '授業';
+  APP.processingSteps       = {};
+  APP.processingError       = null;
+  go('processing');
+
+  try {
+    await processSession(sessionId, (step, status) => {
+      APP.processingSteps[step] = status;
+      updateStepUI(step, status);
+    });
+    toast('処理完了！報告書を確認してください');
+  } catch(e) {
+    APP.processingError = e.message;
+    render();
+  }
+}
+
+async function processAll() {
+  const list = APP.processList || [];
+  for (const s of list) {
+    await processOne(s.id);
+    if (APP.processingError) break;
+  }
+  APP.processList = await loadUnprocessed(APP.teacher.id);
+  APP.histSessions = await loadRecentSessions(APP.teacher.id);
+}
+
+function updateStepUI(step, status) {
+  const el = document.getElementById(`step-${step}`);
+  if (!el) { render(); return; }
+  el.className = `step-row ${status}`;
+  const ico = el.querySelector('.step-icon');
+  if (ico) ico.innerHTML = status === 'done' ? '✅' : status === 'error' ? '❌' : '<span class="spin" style="width:18px;height:18px;border-width:2px"></span>';
+
+  // Check if all done for go-report button
+  const steps = ['load','upload','transcribe','analyze','report'];
+  if (steps.every(k => APP.processingSteps[k] === 'done')) {
+    const existing = document.querySelector('[data-action="go-report"]');
+    if (!existing) {
+      const btn = document.createElement('button');
+      btn.className = 'btn btn-success btn-full btn-lg mt16';
+      btn.dataset.action = 'go-report';
+      btn.textContent = '📋 報告書を確認する';
+      document.querySelector('.main')?.appendChild(btn);
+    }
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Report
+// ══════════════════════════════════════════════════════════════════════
+async function viewSession(sessionId) {
+  // Check if has report
+  const { data: rep } = await _sb.from('vr_reports').select('*').eq('session_id', sessionId).single();
+  const { data: an }  = await _sb.from('vr_analysis').select('*').eq('session_id', sessionId).single();
+  const { data: sess} = await _sb.from('vr_sessions').select('*, vr_students(name,grade)').eq('id', sessionId).single();
+
+  APP.viewSession = sess;
+  APP.currentAnalysis = an;
+
+  if (rep) {
+    // Show report
+    let transcripts = null;
+    if (sess?.combined_transcript) transcripts = sess.combined_transcript;
+    APP.currentReport = rep;
+    APP.transcripts = transcripts;
+    APP.reportEditing = false;
+    APP.aiReviseMode = false;
+    go('report');
+  } else if (sess?.status === 'saved' || sess?.status === 'recording') {
+    // Offer to process
+    if (confirm(`${sess?.vr_students?.name || ''}の授業を今すぐAI処理しますか？`)) {
+      APP.processList = [sess];
+      await processOne(sessionId);
+    }
+  } else {
+    toast('この授業にはまだ報告書がありません');
+  }
+}
+
+async function showReport(sessionId) {
+  await viewSession(sessionId);
+}
+
+async function approveReport(reportId) {
+  await _sb.from('vr_reports').update({
+    status:      'approved',
+    approved_at: new Date().toISOString(),
+    updated_at:  new Date().toISOString(),
+  }).eq('id', reportId);
+  if (APP.currentReport) APP.currentReport.status = 'approved';
+  toast('✅ 承認しました');
+  render();
+}
+
+function copyReport() {
+  const rep = APP.currentReport;
+  if (!rep) return;
+  const text = rep.edited_content || rep.content;
+  navigator.clipboard?.writeText(text).then(() => toast('📋 コピーしました'))
+    .catch(() => {
+      const ta = document.createElement('textarea');
+      ta.value = text; document.body.appendChild(ta); ta.select();
+      document.execCommand('copy'); document.body.removeChild(ta);
+      toast('📋 コピーしました');
+    });
+}
+
+async function saveReportEdit() {
+  const ta = document.getElementById('rep-edit-txt');
+  if (!ta || !APP.currentReport) return;
+  const edited = ta.value;
+  await _sb.from('vr_reports').update({
+    edited_content: edited,
+    updated_at: new Date().toISOString(),
+  }).eq('id', APP.currentReport.id);
+  APP.currentReport.edited_content = edited;
+  APP.reportEditing = false;
+  toast('保存しました');
+  render();
+}
+
+async function doAiRevise() {
+  const instruction = document.getElementById('ai-revise-txt')?.value?.trim();
+  if (!instruction) return;
+  const rep = APP.currentReport;
+  if (!rep) return;
+  const current = rep.edited_content || rep.content;
+  const sess = APP.viewSession;
+
+  const prompt = `以下の保護者向け報告書を、指示に従って修正してください。修正した報告書のみを返してください。
+
+【現在の報告書】
+${current}
+
+【修正指示】
+${instruction}`;
+
+  const btn = document.querySelector('[data-action="do-ai-revise"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'AI修正中…'; }
+
+  try {
+    const data = await callGemini({ action: 'revise', current_text: current, instruction });
+    const revised = extractText(data).trim();
+    if (revised) {
+      await _sb.from('vr_reports').update({ edited_content: revised, updated_at: new Date().toISOString() }).eq('id', rep.id);
+      APP.currentReport.edited_content = revised;
+      toast('AI修正完了');
+    } else {
+      toast('AIからの応答が空でした');
+    }
+  } catch(e) { toast('AI修正に失敗: ' + e.message); }
+  finally {
+    APP.aiReviseMode = false;
+    render();
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Admin — Students
+// ══════════════════════════════════════════════════════════════════════
+async function saveStudent() {
+  const name    = document.getElementById('ns-name')?.value?.trim();
+  const grade   = document.getElementById('ns-grade')?.value;
+  const campus  = document.getElementById('ns-campus')?.value;
+  const parent  = document.getElementById('ns-parent')?.value?.trim();
+  const contact = document.getElementById('ns-contact')?.value?.trim();
+  const notes   = document.getElementById('ns-notes')?.value?.trim();
+  if (!name) { toast('名前を入力してください'); return; }
+  const { data, error } = await _sb.from('vr_students').insert({ name, grade, campus, parent_name: parent, parent_contact: contact, notes, teacher_id: APP.teacher.id }).select().single();
+  if (error) { toast('保存失敗: ' + error.message); return; }
+  APP.allStudents.push(data);
+  APP.addingStudent = false;
+  render();
+  toast('生徒を追加しました');
+}
+
+async function editStudent(id) {
+  const s = (APP.allStudents || []).find(s => s.id === id);
+  APP.editingStudent = s; APP.addingStudent = true; render();
+}
+
+async function updateStudent(id) {
+  const name    = document.getElementById('ns-name')?.value?.trim();
+  const grade   = document.getElementById('ns-grade')?.value;
+  const campus  = document.getElementById('ns-campus')?.value;
+  const parent  = document.getElementById('ns-parent')?.value?.trim();
+  const contact = document.getElementById('ns-contact')?.value?.trim();
+  const notes   = document.getElementById('ns-notes')?.value?.trim();
+  if (!name) { toast('名前を入力してください'); return; }
+  const { error } = await _sb.from('vr_students').update({ name, grade, campus, parent_name: parent, parent_contact: contact, notes, updated_at: new Date().toISOString() }).eq('id', id);
+  if (error) { toast('更新失敗: ' + error.message); return; }
+  const idx = APP.allStudents.findIndex(s => s.id === id);
+  if (idx >= 0) APP.allStudents[idx] = { ...APP.allStudents[idx], name, grade, campus, parent_name: parent, parent_contact: contact, notes };
+  APP.addingStudent = false; APP.editingStudent = null; render();
+  toast('更新しました');
+}
+
+async function deactivateStudent(id) {
+  if (!confirm('この生徒を退塾済みにしますか？データは保持されます。')) return;
+  await _sb.from('vr_students').update({ active: false }).eq('id', id);
+  APP.allStudents = APP.allStudents.filter(s => s.id !== id);
+  APP.addingStudent = false; APP.editingStudent = null; render();
+  toast('退塾済みにしました');
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Misc
+// ══════════════════════════════════════════════════════════════════════
+async function testGemini() {
+  const el = document.getElementById('gemini-test-result');
+  if (el) { el.innerHTML = '<div class="alert alert-info">テスト中… <span class="spin"></span></div>'; }
+  try {
+    const resp = await callGemini({ action: 'analyze', transcripts: ['テスト'], student_name: 'テスト', grade: 'テスト' });
+    if (el) el.innerHTML = '<div class="alert alert-success">✅ Gemini API に正常に接続できました！</div>';
+  } catch(e) {
+    if (el) el.innerHTML = `<div class="alert alert-err">❌ 接続失敗: ${e.message}</div>`;
+  }
+}
+
+function showErr(el, msg) {
+  if (el) { el.textContent = msg; el.classList.remove('hidden'); }
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// Init
+// ══════════════════════════════════════════════════════════════════════
+async function init() {
+  go('loading');
+  try {
+    const { data: { session } } = await _sb.auth.getSession();
+    if (!session) { go('login'); return; }
+    APP.user = session.user;
+
+    const teacher = await loadTeacher();
+    if (!teacher) { go('onboard'); return; }
+
+    APP.teacher = teacher;
+    DB.teacher  = teacher;
+    APP.todaySessions = await loadTodaySessions(teacher.id);
+    APP.allStudents   = await loadStudents(teacher.campus);
+
+    startAutoSync();
+    checkPendingUploads();
+    go('dashboard');
+  } catch(e) {
+    console.error('Init error:', e);
+    go('login');
+  }
+}
+
+// Auth state listener
+_sb.auth.onAuthStateChange((event, session) => {
+  if (event === 'SIGNED_OUT') { APP.user = null; APP.teacher = null; go('login'); }
+});
+
+init();
+</script>
+</body>
+</html>

@@ -1,4 +1,7 @@
 {
+  "rewrites": [
+    { "source": "/voice-report", "destination": "/voice-report.html" }
+  ],
   "headers": [
     {
       "source": "/sw.js",
