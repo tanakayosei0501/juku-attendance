@@ -1009,6 +1009,14 @@
     .quiz-stat-pass    { background: #d1fae5; color: #065f46; }
     .quiz-stat-fail    { background: #fee2e2; color: #991b1b; }
     .quiz-stat-none    { background: #f1f5f9; color: #64748b; }
+    .quiz-alert        { background: #fef2f2; border: 1.5px solid #fca5a5; border-radius: 12px; padding: 12px 14px; margin-bottom: 14px; }
+    .quiz-alert-title  { font-weight: 800; font-size: .92rem; color: #991b1b; margin-bottom: 8px; }
+    .quiz-alert-item   { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 0; border-top: 1px solid #fecaca; }
+    .quiz-alert-item:first-of-type { border-top: none; }
+    .quiz-alert-info   { flex: 1; min-width: 180px; font-size: .85rem; }
+    .quiz-alert-info b { font-weight: 800; }
+    .quiz-alert-names  { font-size: .78rem; color: #7f1d1d; margin-top: 2px; }
+    .quiz-card-highlight { box-shadow: 0 0 0 3px #f87171; transition: box-shadow .3s; }
 
     /* ── 休講日バナー ── */
     .holiday-banner {
@@ -1422,6 +1430,7 @@
         <button class="btn btn-primary" onclick="addQuizTest()" style="flex-shrink:0;">追加</button>
       </div>
     </div>
+    <div id="quiz-alert"></div>
     <div id="quiz-list"></div>
   </div>
 
@@ -3262,7 +3271,50 @@ function getQuizTargets(test, date) {
   return getStudents().filter(s => s.days.includes(di));
 }
 
+// 不合格者がいるテストの一覧（全日付・新しい順）
+function renderQuizAlert() {
+  const el = document.getElementById('quiz-alert');
+  if (!el) return;
+  const items = [];
+  _db.quizTests.forEach(test => {
+    const failNames = [];
+    getQuizTargets(test, test.date).forEach(s => {
+      const sc = _db.quizScores.find(x => x.testId === test.id && x.studentId === s.id);
+      if (sc && sc.score != null && sc.score < test.passScore) failNames.push(s.name);
+    });
+    if (failNames.length) items.push({ test, failNames });
+  });
+  if (!items.length) { el.innerHTML = ''; return; }
+  items.sort((a, b) => b.test.date.localeCompare(a.test.date));
+  const total = items.reduce((n, i) => n + i.failNames.length, 0);
+  el.innerHTML = `<div class="quiz-alert">
+    <div class="quiz-alert-title">⚠️ 不合格の生徒がいます（${items.length}件のテスト・のべ${total}名）</div>
+    ${items.map(({ test, failNames }) => `
+      <div class="quiz-alert-item">
+        <div class="quiz-alert-info">
+          <b>${esc(formatDateJP(test.date))}</b>　${esc(test.title)}　<b style="color:#991b1b;">不合格 ${failNames.length}名</b>
+          <div class="quiz-alert-names">${failNames.map(esc).join('、')}</div>
+        </div>
+        <button class="btn btn-outline btn-sm" onclick="gotoQuizTest('${test.id}')">確認する</button>
+      </div>`).join('')}
+  </div>`;
+}
+
+function gotoQuizTest(testId) {
+  const test = _db.quizTests.find(t => t.id === testId);
+  if (!test) return;
+  document.getElementById('quiz-date').value = test.date;
+  renderQuiz();
+  const card = document.getElementById('quiz-card-' + testId);
+  if (card) {
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    card.classList.add('quiz-card-highlight');
+    setTimeout(() => card.classList.remove('quiz-card-highlight'), 2000);
+  }
+}
+
 function renderQuiz() {
+  renderQuizAlert();
   const date  = document.getElementById('quiz-date').value;
   const dayEl = document.getElementById('quiz-day');
   const listEl = document.getElementById('quiz-list');
@@ -3309,7 +3361,7 @@ function renderQuiz() {
     }).join('') : '<div style="padding:12px 14px;color:var(--muted);font-size:.85rem;">対象者が登録されていません</div>';
 
     return `
-      <div class="quiz-test-card">
+      <div class="quiz-test-card" id="quiz-card-${test.id}">
         <div class="quiz-test-header">
           <div>
             <div class="quiz-test-title">🧪 ${esc(test.title)}</div>
@@ -3498,6 +3550,7 @@ async function saveQuizScore(testId, studentId, rawVal, passScore, inputEl) {
   }
   if (error) { toast('⚠️ 保存できませんでした'); return; }
 
+  renderQuizAlert();
   // バッジだけ更新（再描画でフォーカスを奪わない）
   const row    = inputEl.closest('.quiz-score-row');
   const badge  = row?.querySelector('.quiz-badge');
