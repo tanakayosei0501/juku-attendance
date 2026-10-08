@@ -1016,6 +1016,19 @@
     .quiz-alert-info   { flex: 1; min-width: 180px; font-size: .85rem; }
     .quiz-alert-info b { font-weight: 800; }
     .quiz-alert-names  { font-size: .78rem; color: #7f1d1d; margin-top: 2px; }
+    .wb-wrap   { overflow-x: auto; border: 1.5px solid var(--border); border-radius: 12px; background: #fff; }
+    .wb-table  { border-collapse: separate; border-spacing: 0; width: 100%; font-size: .85rem; }
+    .wb-table th, .wb-table td { padding: 8px 6px; text-align: center; border-bottom: 1px solid var(--border); white-space: nowrap; }
+    .wb-table th { background: #f8fafc; font-weight: 800; font-size: .8rem; position: sticky; top: 0; }
+    .wb-table th.wb-name, .wb-table td.wb-name { position: sticky; left: 0; text-align: left; background: #fff; min-width: 110px; z-index: 1; border-right: 1px solid var(--border); }
+    .wb-table th.wb-name { background: #f8fafc; z-index: 2; }
+    .wb-name small { display: block; font-size: .7rem; color: var(--muted); font-weight: 600; }
+    .wb-cell   { min-width: 64px; padding: 6px 4px; border: 1.5px solid var(--border); border-radius: 8px; background: #fff; cursor: pointer; font-family: inherit; font-size: .78rem; font-weight: 800; color: var(--muted); line-height: 1.3; }
+    .wb-cell .wb-dots { display: block; letter-spacing: 2px; font-size: .9rem; }
+    .wb-r1 { background: #fef3c7; border-color: #fcd34d; color: #92400e; }
+    .wb-r2 { background: #dbeafe; border-color: #93c5fd; color: #1e40af; }
+    .wb-r3 { background: #d1fae5; border-color: #6ee7b7; color: #065f46; }
+    .wb-none { border-style: dashed; background: transparent; opacity: .55; font-weight: 600; }
     .quiz-card-highlight { box-shadow: 0 0 0 3px #f87171; transition: box-shadow .3s; }
 
     /* ── 休講日バナー ── */
@@ -1219,6 +1232,7 @@
   <button class="tab-btn" onclick="switchTab(this,'attendance')">📋 出席記録</button>
   <button class="tab-btn" onclick="switchTab(this,'homework')">📝 宿題</button>
   <button class="tab-btn" onclick="switchTab(this,'quiz')">🧪 小テスト</button>
+  <button class="tab-btn" onclick="switchTab(this,'workbook')">📚 ワーク</button>
   <button class="tab-btn" onclick="switchTab(this,'students')">👤 生徒管理</button>
   <button class="tab-btn" onclick="switchTab(this,'report')">📊 集計</button>
 </nav>
@@ -1271,6 +1285,27 @@
       <div id="follow-list"></div>
     </div>
 
+  </div>
+
+  <!-- ── 学校ワーク進捗 ── -->
+  <div id="tab-workbook" class="tab-panel">
+    <div class="card">
+      <div class="card-title">📚 学校ワークの進捗（3周まで）</div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;">
+        <div class="search-input-wrap" style="flex:1;min-width:140px;">
+          <span class="search-icon">🔍</span>
+          <input type="text" id="wb-search" placeholder="名前で検索..." oninput="renderWorkbook()" />
+        </div>
+        <select id="wb-grade" class="grade-select" onchange="renderWorkbook()" style="flex:1;min-width:130px;"><option value="">全学年</option></select>
+        <select id="wb-school" class="grade-select" onchange="renderWorkbook()" style="flex:1;min-width:130px;"><option value="">全ての学校</option></select>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;">
+        <button class="btn btn-primary btn-sm" onclick="openWbBulk()">＋ ワークを一括追加・削除</button>
+        <span style="font-size:.76rem;color:var(--muted);">マスをタップすると、0周 → 1周 → 2周 → 3周 → 0周の順に切り替わります</span>
+      </div>
+      <div class="search-count" id="wb-count"></div>
+      <div id="wb-list"></div>
+    </div>
   </div>
 
   <!-- ── 生徒管理 ── -->
@@ -1689,6 +1724,38 @@
 </div>
 
 <!-- ── PIN設定モーダル ── -->
+<!-- ── ワーク 一括追加モーダル ── -->
+<div class="overlay" id="wb-bulk-modal">
+  <div class="modal" style="max-width:540px;">
+    <div class="card-title">📚 ワークを一括追加・削除</div>
+    <div style="font-size:.8rem;font-weight:800;color:var(--muted);margin-bottom:6px;">① 教科（複数選べます）</div>
+    <div id="wb-subj-chips" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;"></div>
+    <div style="display:flex;gap:6px;margin-bottom:16px;">
+      <input type="text" id="wb-custom" placeholder="新しい教科を追加（例：漢字・英単語）" maxlength="12"
+             style="flex:1;padding:9px 12px;border:1.5px solid var(--border);border-radius:8px;font-size:.88rem;font-family:inherit;" />
+      <button class="btn btn-outline btn-sm" onclick="addWbCustom()">追加</button>
+    </div>
+    <div style="font-size:.8rem;font-weight:800;color:var(--muted);margin-bottom:6px;">② 対象の生徒</div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;">
+      <button class="grade-chip-btn group" id="wb-all-btn" onclick="toggleWbAll()">全員</button>
+      <button class="grade-chip-btn group" onclick="toggleWbGroup('小学')">小学生</button>
+      <button class="grade-chip-btn group" onclick="toggleWbGroup('中学')">中学生</button>
+      <button class="grade-chip-btn group" onclick="toggleWbGroup('高校')">高校生</button>
+    </div>
+    <div style="font-size:.74rem;color:var(--muted);margin-bottom:4px;">学年で選ぶ</div>
+    <div id="wb-grade-chips" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;"></div>
+    <div style="font-size:.74rem;color:var(--muted);margin-bottom:4px;">学校で選ぶ（カルテの「通っている学校」）</div>
+    <div id="wb-school-chips" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;"></div>
+    <div class="target-selected-count" id="wb-target-count" style="margin-bottom:4px;"></div>
+    <div style="font-size:.72rem;color:var(--muted);">学年と学校を両方選ぶと「その学年かつその学校」の生徒になります。</div>
+    <div class="modal-foot" style="flex-wrap:wrap;">
+      <button class="btn btn-outline" onclick="closeWbBulk()">閉じる</button>
+      <button class="btn btn-outline" style="color:#b91c1c;border-color:#fca5a5;" onclick="wbBulkRemove()">この教科を外す</button>
+      <button class="btn btn-primary" onclick="wbBulkAdd()">この教科を追加</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── 小テスト 対象者設定モーダル ── -->
 <div class="overlay" id="quiz-target-modal">
   <div class="modal" style="max-width:520px;max-height:88vh;display:flex;flex-direction:column;gap:0;padding:0;overflow:hidden;">
@@ -1824,7 +1891,7 @@ const GRADES  = ['小学1年生','小学2年生','小学3年生','小学4年生'
 // ════════════════════════════
 //  インメモリキャッシュ（Supabase から起動時にロード）
 // ════════════════════════════
-const _db = { students: [], attendance: [], makeups: [], templates: {}, homework: [], holidays: [], quizTests: [], quizScores: [], studentProfiles: [], studentTests: [], studentConsultations: [], campusRules: [] };
+const _db = { students: [], attendance: [], makeups: [], templates: {}, homework: [], holidays: [], quizTests: [], quizScores: [], studentProfiles: [], studentTests: [], studentConsultations: [], campusRules: [], workbooks: [] };
 
 // ════════════════════════════
 //  データアクセス（キャッシュ読み書き）
@@ -1973,6 +2040,7 @@ function switchTab(btn, name) {
   if (name === 'attendance') renderAtt();
   if (name === 'homework')   renderHomework();
   if (name === 'quiz')       renderQuiz();
+  if (name === 'workbook')   renderWorkbook();
   if (name === 'report')     { renderMonthly(); renderReport(); }
 }
 
@@ -3563,6 +3631,179 @@ async function saveQuizScore(testId, studentId, rawVal, passScore, inputEl) {
 }
 
 // ════════════════════════════
+//  学校ワーク進捗（3周まで）
+// ════════════════════════════
+const WB_BASE = ['国語','数学','英語','理科','社会'];
+const WB_MAX  = 3;
+const getSchoolOf = sid => ((_db.studentProfiles.find(p => p.studentId === sid) || {}).schoolName || '').trim();
+
+function wbSubjects() {
+  const extra = [...new Set(_db.workbooks.map(w => w.subject))].filter(x => !WB_BASE.includes(x)).sort();
+  return [...WB_BASE, ...extra];
+}
+
+function wbSchools() {
+  return [...new Set(getStudents().map(s => getSchoolOf(s.id)).filter(Boolean))].sort();
+}
+
+function renderWorkbook() {
+  const listEl = document.getElementById('wb-list');
+  if (!listEl) return;
+  // 学校セレクトを最新に
+  const schoolEl = document.getElementById('wb-school');
+  const curSchool = schoolEl.value;
+  schoolEl.innerHTML = '<option value="">全ての学校</option>' + wbSchools().map(x => `<option value="${esc(x)}">${esc(x)}</option>`).join('');
+  schoolEl.value = wbSchools().includes(curSchool) ? curSchool : '';
+
+  const q = document.getElementById('wb-search').value.trim();
+  const gf = document.getElementById('wb-grade').value;
+  const sf = schoolEl.value;
+  let students = getStudents().slice();
+  if (q)  students = students.filter(s => s.name.includes(q));
+  if (gf) students = students.filter(s => gradeMatches(s.grade, gf));
+  if (sf) students = students.filter(s => getSchoolOf(s.id) === sf);
+  students.sort((a, b) => (GRADES.indexOf(a.grade) - GRADES.indexOf(b.grade)) || a.name.localeCompare(b.name, 'ja'));
+  document.getElementById('wb-count').innerHTML = (q || gf || sf) ? `<span>${students.length}名</span> / ${getStudents().length}名中` : '';
+
+  if (!_db.workbooks.length) {
+    listEl.innerHTML = '<div class="empty"><div class="empty-icon">📚</div><p>まだワークが登録されていません<br>「＋ ワークを一括追加・削除」から、教科と生徒を選んで追加してください</p></div>';
+    return;
+  }
+  if (!students.length) { listEl.innerHTML = '<div class="empty"><div class="empty-icon">🔍</div><p>該当する生徒がいません</p></div>'; return; }
+
+  const subjects = wbSubjects();
+  const map = {};
+  _db.workbooks.forEach(w => { map[w.studentId + '|' + w.subject] = w; });
+  const head = '<tr><th class="wb-name">生徒</th>' + subjects.map(x => `<th>${esc(x)}</th>`).join('') + '</tr>';
+  const body = students.map(s => {
+    const school = getSchoolOf(s.id);
+    const cells = subjects.map(sub => {
+      const w = map[s.id + '|' + sub];
+      if (!w) return `<td><button class="wb-cell wb-none" onclick="wbAddOne('${s.id}','${esc(sub)}')">＋</button></td>`;
+      const dots = '●'.repeat(w.rounds) + '○'.repeat(WB_MAX - w.rounds);
+      const label = w.rounds === 0 ? '未着手' : `${w.rounds}周済`;
+      return `<td><button class="wb-cell wb-r${w.rounds}" onclick="wbCycle('${w.id}')"><span class="wb-dots">${dots}</span>${label}</button></td>`;
+    }).join('');
+    return `<tr><td class="wb-name">${esc(s.name)}<small>${esc(s.grade || '')}${school ? '・' + esc(school) : ''}</small></td>${cells}</tr>`;
+  }).join('');
+  const prev = listEl.querySelector('.wb-wrap');
+  const sl = prev ? prev.scrollLeft : 0;
+  listEl.innerHTML = `<div class="wb-wrap"><table class="wb-table"><thead>${head}</thead><tbody>${body}</tbody></table></div>`;
+  const now = listEl.querySelector('.wb-wrap');
+  if (now) now.scrollLeft = sl;
+}
+
+async function wbCycle(id) {
+  const w = _db.workbooks.find(x => x.id === id);
+  if (!w) return;
+  const old = { rounds: w.rounds, updatedAt: w.updatedAt };
+  w.rounds = (w.rounds + 1) % (WB_MAX + 1);
+  w.updatedAt = todayStr();
+  renderWorkbook();
+  const { error } = await _supabase.from('student_workbooks').update({ rounds: w.rounds, updated_at: w.updatedAt }).eq('id', id);
+  if (error) { w.rounds = old.rounds; w.updatedAt = old.updatedAt; renderWorkbook(); toast('⚠️ 保存できませんでした'); }
+}
+
+async function wbAddOne(studentId, subject) {
+  const row = { id: uid(), studentId, subject, rounds: 0, updatedAt: todayStr() };
+  const { error } = await _supabase.from('student_workbooks').insert({ id: row.id, student_id: studentId, subject, rounds: 0, updated_at: row.updatedAt });
+  if (error) { toast('⚠️ 追加できませんでした（SQLの適用はお済みですか？）'); return; }
+  _db.workbooks.push(row);
+  renderWorkbook();
+}
+
+// ── 一括追加・削除 ──
+let _wb = { subjects: new Set(), grades: new Set(), schools: new Set(), all: false, custom: [] };
+
+function openWbBulk() {
+  _wb = { subjects: new Set(WB_BASE), grades: new Set(), schools: new Set(), all: false, custom: [] };
+  renderWbBulk();
+  document.getElementById('wb-bulk-modal').classList.add('open');
+}
+function closeWbBulk() { document.getElementById('wb-bulk-modal').classList.remove('open'); }
+
+function wbBulkTargets() {
+  if (_wb.all) return getStudents();
+  if (!_wb.grades.size && !_wb.schools.size) return [];
+  return getStudents().filter(s =>
+    (!_wb.grades.size  || _wb.grades.has(s.grade)) &&
+    (!_wb.schools.size || _wb.schools.has(getSchoolOf(s.id))));
+}
+
+function renderWbBulk() {
+  const subs = [...new Set([...wbSubjects(), ..._wb.custom])];
+  document.getElementById('wb-subj-chips').innerHTML = subs.map(x =>
+    `<button class="grade-chip-btn ${_wb.subjects.has(x) ? 'active' : ''}" data-v="${esc(x)}" onclick="toggleWbSet('subjects',this.dataset.v)">${esc(x)}</button>`).join('');
+  document.getElementById('wb-all-btn').classList.toggle('active', _wb.all);
+  document.getElementById('wb-grade-chips').innerHTML = GRADES.map(g =>
+    `<button class="grade-chip-btn ${_wb.grades.has(g) ? 'active' : ''}" onclick="toggleWbSet('grades','${g}')">${g.replace('生','')}</button>`).join('');
+  const schools = wbSchools();
+  document.getElementById('wb-school-chips').innerHTML = schools.length
+    ? schools.map(x => `<button class="grade-chip-btn ${_wb.schools.has(x) ? 'active' : ''}" data-v="${esc(x)}" onclick="toggleWbSet('schools',this.dataset.v)">${esc(x)}</button>`).join('')
+    : '<span style="font-size:.76rem;color:var(--muted);">カルテに学校名が登録された生徒がいません</span>';
+  document.getElementById('wb-target-count').textContent = `対象：${wbBulkTargets().length}名 ／ 教科：${_wb.subjects.size}つ`;
+}
+
+function toggleWbSet(key, v) {
+  const set = _wb[key];
+  set.has(v) ? set.delete(v) : set.add(v);
+  if (key !== 'subjects') _wb.all = false;
+  renderWbBulk();
+}
+function toggleWbAll() { _wb.all = !_wb.all; if (_wb.all) { _wb.grades.clear(); _wb.schools.clear(); } renderWbBulk(); }
+function toggleWbGroup(prefix) {
+  const gs = GRADES.filter(g => g.startsWith(prefix));
+  const allOn = gs.every(g => _wb.grades.has(g));
+  gs.forEach(g => allOn ? _wb.grades.delete(g) : _wb.grades.add(g));
+  _wb.all = false;
+  renderWbBulk();
+}
+function addWbCustom() {
+  const el = document.getElementById('wb-custom');
+  const v = el.value.trim();
+  if (!v) return;
+  if (!_wb.custom.includes(v)) _wb.custom.push(v);
+  _wb.subjects.add(v);
+  el.value = '';
+  renderWbBulk();
+}
+
+async function wbBulkAdd() {
+  const targets = wbBulkTargets(), subs = [..._wb.subjects];
+  if (!subs.length) { toast('教科を選んでください'); return; }
+  if (!targets.length) { toast('対象の生徒を選んでください'); return; }
+  const have = new Set(_db.workbooks.map(w => w.studentId + '|' + w.subject));
+  const rows = [];
+  targets.forEach(s => subs.forEach(sub => {
+    if (!have.has(s.id + '|' + sub)) rows.push({ id: uid(), studentId: s.id, subject: sub, rounds: 0, updatedAt: todayStr() });
+  }));
+  if (!rows.length) { toast('すでに全員に登録済みです'); return; }
+  const { error } = await _supabase.from('student_workbooks').insert(rows.map(r => ({ id: r.id, student_id: r.studentId, subject: r.subject, rounds: 0, updated_at: r.updatedAt })));
+  if (error) { toast('⚠️ 追加できませんでした（SQLの適用はお済みですか？）'); return; }
+  _db.workbooks.push(...rows);
+  closeWbBulk();
+  renderWorkbook();
+  toast(`✅ ${rows.length}件のワークを追加しました`);
+}
+
+async function wbBulkRemove() {
+  const targets = wbBulkTargets(), subs = [..._wb.subjects];
+  if (!subs.length || !targets.length) { toast('教科と対象の生徒を選んでください'); return; }
+  const tset = new Set(targets.map(s => s.id));
+  const del = _db.workbooks.filter(w => tset.has(w.studentId) && subs.includes(w.subject));
+  if (!del.length) { toast('該当するワークがありません'); return; }
+  if (!confirm(`${targets.length}名の「${subs.join('・')}」を外しますか？\n（${del.length}件、進捗の記録も消えます）`)) return;
+  const ids = del.map(w => w.id);
+  const { error } = await _supabase.from('student_workbooks').delete().in('id', ids);
+  if (error) { toast('⚠️ 削除できませんでした'); return; }
+  const idset = new Set(ids);
+  _db.workbooks = _db.workbooks.filter(w => !idset.has(w.id));
+  closeWbBulk();
+  renderWorkbook();
+  toast(`${del.length}件を外しました`);
+}
+
+// ════════════════════════════
 //  休講日管理
 // ════════════════════════════
 function holidayBannerHTML(holiday) {
@@ -4674,7 +4915,7 @@ function hideLoading() {
 //  Supabase データロード
 // ════════════════════════════
 async function loadAllData() {
-  const [s, a, m, t, hw, hl, qt, qs, sp, st, sc, cr] = await Promise.all([
+  const [s, a, m, t, hw, hl, qt, qs, sp, st, sc, cr, wb] = await Promise.all([
     _supabase.from('students').select('*').order('created_at'),
     _supabase.from('attendance').select('*'),
     _supabase.from('makeups').select('*'),
@@ -4686,7 +4927,8 @@ async function loadAllData() {
     _supabase.from('student_profiles').select('*'),
     _supabase.from('student_tests').select('*').order('date', { ascending: false }),
     _supabase.from('student_consultations').select('*').order('date', { ascending: false }),
-    _supabase.from('campus_rules').select('*')
+    _supabase.from('campus_rules').select('*'),
+    _supabase.from('student_workbooks').select('*')
   ]);
   _db.students    = (s.data || []).map(r => ({ id: r.id, name: r.name, grade: r.grade || '', days: r.days || [], campus: r.campus || '鶴瀬東' }));
   _db.attendance  = (a.data || []).map(r => ({ id: r.id, date: r.date, studentId: r.student_id, status: r.status, time: r.time || undefined, memo: r.memo || undefined }));
@@ -4700,6 +4942,7 @@ async function loadAllData() {
   _db.studentProfiles      = (sp.data || []).map(r => ({ studentId: r.student_id, furigana: r.furigana||'', birthday: r.birthday||'', schoolName: r.school_name||'', enrolledDate: r.enrolled_date||'', siblingsMemo: r.siblings_memo||'', photoUrl: r.photo_url||'', subjects: r.subjects||'', targetSchool1: r.target_school1||'', targetSchool2: r.target_school2||'', goal: r.goal||'', strongSubjects: r.strong_subjects||'', weakSubjects: r.weak_subjects||'', naishinsho: r.naishinsho||'', personality: r.personality||'', healthNotes: r.health_notes||'', freeMemo: r.free_memo||'' }));
   _db.studentTests         = (st.data || []).map(r => ({ id: r.id, studentId: r.student_id, date: r.date, testName: r.test_name, subject: r.subject||'', score: r.score, maxScore: r.max_score, notes: r.notes||'' }));
   _db.studentConsultations = (sc.data || []).map(r => ({ id: r.id, studentId: r.student_id, date: r.date, memo: r.memo||'' }));
+  _db.workbooks = (wb.data || []).map(r => ({ id: r.id, studentId: r.student_id, subject: r.subject, rounds: r.rounds || 0, updatedAt: r.updated_at || '' }));
   // 校舎ルール（全校舎ぶん保持。判定は isRuleEnabled で現在校舎ぶんだけ参照）
   _db.campusRules = (cr.data || []).map(r => ({ id: r.id, campus: r.campus, ruleKey: r.rule_key, enabled: r.enabled }));
 
@@ -4714,6 +4957,7 @@ async function loadAllData() {
   _db.studentProfiles      = _db.studentProfiles.filter(p => _campusIds.has(p.studentId));
   _db.studentTests         = _db.studentTests.filter(t => _campusIds.has(t.studentId));
   _db.studentConsultations = _db.studentConsultations.filter(c => _campusIds.has(c.studentId));
+  _db.workbooks            = _db.workbooks.filter(w => _campusIds.has(w.studentId));
   _db.quizTests            = _db.quizTests.filter(t => t.campus === CURRENT_CAMPUS);
   // 休講日は「この校舎」＋「共通（両校舎）」を表示対象にする
   _db.holidays             = _db.holidays.filter(h => h.campus === CURRENT_CAMPUS || h.campus === '共通');
@@ -4820,6 +5064,7 @@ async function continueInit() {
 
   // 宿題タブの初期化
   initGradeFilter('hw-grade');
+  initGradeFilter('wb-grade');
   document.getElementById('hw-date').value = todayStr();
   // 休講日フォームの校舎セレクトを初期化（この校舎 / 共通）
   const hlCampusEl = document.getElementById('hl-campus');
@@ -4863,6 +5108,9 @@ document.getElementById('template-modal').addEventListener('click', function(e) 
 });
 document.getElementById('makeup-modal').addEventListener('click', function(e) {
   if (e.target === this) closeMakeupModal();
+});
+document.getElementById('wb-bulk-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeWbBulk();
 });
 document.getElementById('quiz-target-modal').addEventListener('click', function(e) {
   if (e.target === this) closeQuizTargetModal();
