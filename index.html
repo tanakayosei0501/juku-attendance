@@ -993,6 +993,11 @@
       transition: background .1s;
     }
     .quiz-score-row:last-child { border-bottom: none; }
+    .quiz-memo-input {
+      flex: 1 1 100%; padding: 7px 10px; border: 1.5px solid var(--border); border-radius: 8px;
+      font-size: .82rem; font-family: inherit; background: #fffdf5; color: var(--text);
+    }
+    .quiz-memo-input:focus { outline: none; border-color: var(--primary); background: #fff; }
     .quiz-score-name  { flex: 1; min-width: 120px; font-weight: 700; font-size: .9rem; }
     .quiz-score-input {
       width: 72px; padding: 7px 10px; border: 1.5px solid var(--border); border-radius: 8px;
@@ -3425,6 +3430,9 @@ function renderQuiz() {
                  onblur="saveQuizScore('${test.id}','${s.id}',this.value,'${test.passScore}',this)" />
           <span style="font-size:.8rem;color:var(--muted);">/ ${test.maxScore}</span>
           <span class="quiz-badge ${badgeCls}">${badgeTxt}</span>
+          <input type="text" class="quiz-memo-input" maxlength="200" value="${esc(sc?.memo || '')}"
+                 placeholder="📝 備考（できていなかったところなど）"
+                 onblur="saveQuizMemo('${test.id}','${s.id}',this.value)" />
         </div>`;
     }).join('') : '<div style="padding:12px 14px;color:var(--muted);font-size:.85rem;">対象者が登録されていません</div>';
 
@@ -3597,6 +3605,28 @@ async function deleteQuizTest(testId) {
   renderQuiz();
 }
 
+async function saveQuizMemo(testId, studentId, rawVal) {
+  const memo = rawVal.trim();
+  const existing = _db.quizScores.find(s => s.testId === testId && s.studentId === studentId);
+  if ((existing?.memo || '') === memo) return;
+  let error;
+  if (existing) {
+    if (!memo && existing.score == null) {
+      ({ error } = await _supabase.from('quiz_scores').delete().eq('id', existing.id));
+      if (!error) _db.quizScores = _db.quizScores.filter(s => s.id !== existing.id);
+    } else {
+      ({ error } = await _supabase.from('quiz_scores').update({ memo }).eq('id', existing.id));
+      if (!error) existing.memo = memo;
+    }
+  } else {
+    const id = uid();
+    ({ error } = await _supabase.from('quiz_scores').insert({ id, test_id: testId, student_id: studentId, score: null, memo }));
+    if (!error) _db.quizScores.push({ id, testId, studentId, score: null, memo });
+  }
+  if (error) { toast('⚠️ 備考を保存できませんでした（SQLの適用はお済みですか？）'); return; }
+  toast('📝 備考を保存しました');
+}
+
 async function saveQuizScore(testId, studentId, rawVal, passScore, inputEl) {
   const score = rawVal.trim() === '' ? null : parseInt(rawVal);
   const existing = _db.quizScores.find(s => s.testId === testId && s.studentId === studentId);
@@ -3605,7 +3635,7 @@ async function saveQuizScore(testId, studentId, rawVal, passScore, inputEl) {
   if (currentScore === score) return;
 
   let error;
-  if (score === null && existing) {
+  if (score === null && existing && !existing.memo) {
     ({ error } = await _supabase.from('quiz_scores').delete().eq('id', existing.id));
     if (!error) _db.quizScores = _db.quizScores.filter(s => s.id !== existing.id);
   } else if (existing) {
@@ -4938,7 +4968,7 @@ async function loadAllData() {
   _db.homework    = (hw.data || []).map(r => ({ id: r.id, studentId: r.student_id, date: r.date, status: r.status || null, memo: r.memo || undefined }));
   _db.holidays    = (hl.data || []).map(r => ({ id: r.id, date: r.date, memo: r.memo || '', campus: r.campus || '共通' }));
   _db.quizTests   = (qt.data || []).map(r => ({ id: r.id, date: r.date, title: r.title, maxScore: r.max_score, passScore: r.pass_score, targetStudents: r.target_students || [], campus: r.campus || '鶴瀬東' }));
-  _db.quizScores  = (qs.data || []).map(r => ({ id: r.id, testId: r.test_id, studentId: r.student_id, score: r.score }));
+  _db.quizScores  = (qs.data || []).map(r => ({ id: r.id, testId: r.test_id, studentId: r.student_id, score: r.score, memo: r.memo || '' }));
   _db.studentProfiles      = (sp.data || []).map(r => ({ studentId: r.student_id, furigana: r.furigana||'', birthday: r.birthday||'', schoolName: r.school_name||'', enrolledDate: r.enrolled_date||'', siblingsMemo: r.siblings_memo||'', photoUrl: r.photo_url||'', subjects: r.subjects||'', targetSchool1: r.target_school1||'', targetSchool2: r.target_school2||'', goal: r.goal||'', strongSubjects: r.strong_subjects||'', weakSubjects: r.weak_subjects||'', naishinsho: r.naishinsho||'', personality: r.personality||'', healthNotes: r.health_notes||'', freeMemo: r.free_memo||'' }));
   _db.studentTests         = (st.data || []).map(r => ({ id: r.id, studentId: r.student_id, date: r.date, testName: r.test_name, subject: r.subject||'', score: r.score, maxScore: r.max_score, notes: r.notes||'' }));
   _db.studentConsultations = (sc.data || []).map(r => ({ id: r.id, studentId: r.student_id, date: r.date, memo: r.memo||'' }));
