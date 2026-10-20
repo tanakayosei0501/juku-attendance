@@ -1034,6 +1034,7 @@
     .wb-r2 { background: #dbeafe; border-color: #93c5fd; color: #1e40af; }
     .wb-r3 { background: #d1fae5; border-color: #6ee7b7; color: #065f46; }
     .wb-none { border-style: dashed; background: transparent; opacity: .55; font-weight: 600; }
+    #gk-hl-box.hidden { display: none; }
     .quiz-card-highlight { box-shadow: 0 0 0 3px #f87171; transition: box-shadow .3s; }
 
     /* ── 休講日バナー ── */
@@ -1235,6 +1236,7 @@
 <nav class="tabs">
   <button class="tab-btn active" onclick="switchTab(this,'today')">📅 今日</button>
   <button class="tab-btn" onclick="switchTab(this,'attendance')">📋 出席記録</button>
+  <button class="tab-btn" onclick="switchTab(this,'goukaku')">🎯 合格講座</button>
   <button class="tab-btn" onclick="switchTab(this,'homework')">📝 宿題</button>
   <button class="tab-btn" onclick="switchTab(this,'quiz')">🧪 小テスト</button>
   <button class="tab-btn" onclick="switchTab(this,'workbook')">📚 ワーク</button>
@@ -1290,6 +1292,39 @@
       <div id="follow-list"></div>
     </div>
 
+  </div>
+
+  <!-- ── 合格講座 ── -->
+  <div id="tab-goukaku" class="tab-panel">
+    <div class="card">
+      <div class="date-row">
+        <div class="form-group">
+          <label>日付</label>
+          <input type="date" id="gk-date" onchange="renderGoukaku()" />
+        </div>
+        <button class="btn btn-outline today-btn" onclick="gkToday()">今日</button>
+        <div class="day-chip" id="gk-day">---</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+        <button class="btn btn-outline btn-sm" onclick="openGkMembers()">👥 受講者を設定</button>
+        <button class="btn btn-outline btn-sm" onclick="document.getElementById('gk-hl-box').classList.toggle('hidden')">🏖️ 合格講座の休講を設定</button>
+      </div>
+      <div id="gk-hl-box" class="hidden" style="margin-top:12px;padding:12px;border:1.5px solid var(--border);border-radius:10px;background:#fafbfc;">
+        <div style="font-size:.78rem;color:var(--muted);margin-bottom:8px;">合格講座だけをお休みにする日です（通常授業には影響しません）。終了日を入れると期間でまとめて登録できます。</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+          <input type="date" id="gk-hl-start" style="padding:9px;border:1.5px solid var(--border);border-radius:8px;font-family:inherit;" />
+          <span style="align-self:center;">〜</span>
+          <input type="date" id="gk-hl-end" style="padding:9px;border:1.5px solid var(--border);border-radius:8px;font-family:inherit;" />
+          <input type="text" id="gk-hl-memo" placeholder="メモ（任意）" maxlength="40" style="flex:1;min-width:120px;padding:9px;border:1.5px solid var(--border);border-radius:8px;font-family:inherit;" />
+          <button class="btn btn-primary btn-sm" onclick="addGkHoliday()">登録</button>
+        </div>
+        <div id="gk-hl-list"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div id="gk-summary" class="search-count"></div>
+      <div id="gk-list"></div>
+    </div>
   </div>
 
   <!-- ── 学校ワーク進捗 ── -->
@@ -1729,6 +1764,16 @@
 </div>
 
 <!-- ── PIN設定モーダル ── -->
+<!-- ── 合格講座 受講者モーダル ── -->
+<div class="overlay" id="gk-members-modal">
+  <div class="modal" style="max-width:480px;">
+    <div class="card-title">👥 合格講座の受講者（中学3年生）</div>
+    <div style="font-size:.78rem;color:var(--muted);margin-bottom:10px;">チェックした生徒が、毎回の合格講座の出欠確認に出ます。</div>
+    <div id="gk-member-list"></div>
+    <div class="modal-foot"><button class="btn btn-primary" onclick="closeGkMembers()">閉じる</button></div>
+  </div>
+</div>
+
 <!-- ── ワーク 一括追加モーダル ── -->
 <div class="overlay" id="wb-bulk-modal">
   <div class="modal" style="max-width:540px;">
@@ -1896,7 +1941,7 @@ const GRADES  = ['小学1年生','小学2年生','小学3年生','小学4年生'
 // ════════════════════════════
 //  インメモリキャッシュ（Supabase から起動時にロード）
 // ════════════════════════════
-const _db = { students: [], attendance: [], makeups: [], templates: {}, homework: [], holidays: [], quizTests: [], quizScores: [], studentProfiles: [], studentTests: [], studentConsultations: [], campusRules: [], workbooks: [] };
+const _db = { students: [], attendance: [], makeups: [], templates: {}, homework: [], holidays: [], quizTests: [], quizScores: [], studentProfiles: [], studentTests: [], studentConsultations: [], campusRules: [], workbooks: [], gkMembers: [], gkAtt: [], gkHolidays: [] };
 
 // ════════════════════════════
 //  データアクセス（キャッシュ読み書き）
@@ -2045,6 +2090,7 @@ function switchTab(btn, name) {
   if (name === 'attendance') renderAtt();
   if (name === 'homework')   renderHomework();
   if (name === 'quiz')       renderQuiz();
+  if (name === 'goukaku')    { if (!document.getElementById('gk-date').value) document.getElementById('gk-date').value = gkDefaultDate(); renderGoukaku(); }
   if (name === 'workbook')   renderWorkbook();
   if (name === 'report')     { renderMonthly(); renderReport(); }
 }
@@ -3661,6 +3707,185 @@ async function saveQuizScore(testId, studentId, rawVal, passScore, inputEl) {
 }
 
 // ════════════════════════════
+//  合格講座（中3希望者・火〜土・通常授業とは別の出欠）
+// ════════════════════════════
+const GK_STATUSES = ['出席','欠席','遅刻','早退'];
+const GK_DAYS = [1,2,3,4,5];   // 火〜土
+const GK_GRADE = '中学3年生';
+
+function gkDefaultDate() { return todayStr(); }
+function gkToday() { document.getElementById('gk-date').value = todayStr(); renderGoukaku(); }
+function gkMemberStudents() {
+  const ids = new Set(_db.gkMembers.map(m => m.studentId));
+  return getStudents().filter(s => ids.has(s.id)).sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+}
+function gkHolidayOn(date) {
+  const gk = _db.gkHolidays.find(h => h.date === date);
+  if (gk) return { memo: gk.memo, kind: '合格講座' };
+  const h = _db.holidays.find(x => x.date === date);
+  if (h) return { memo: h.memo, kind: '通常' };
+  return null;
+}
+
+function renderGoukaku() {
+  const date = document.getElementById('gk-date').value;
+  const dayEl = document.getElementById('gk-day');
+  const listEl = document.getElementById('gk-list');
+  const sumEl = document.getElementById('gk-summary');
+  renderGkHolidayList();
+  if (!date) { dayEl.textContent = '---'; sumEl.innerHTML = ''; listEl.innerHTML = '<div class="empty"><p>日付を選択してください</p></div>'; return; }
+  const di = dayIdx(date);
+  dayEl.textContent = DAYS[di] + '曜日';
+  sumEl.innerHTML = '';
+
+  if (!GK_DAYS.includes(di)) {
+    listEl.innerHTML = `<div class="empty"><div class="empty-icon">🎯</div><p>合格講座は火曜日〜土曜日です<br>（${DAYS[di]}曜日はお休み）</p></div>`;
+    return;
+  }
+  const hol = gkHolidayOn(date);
+  if (hol) {
+    const label = hol.kind === '合格講座' ? '本日は合格講座のお休みです' : '本日は休講日です';
+    listEl.innerHTML = `<div class="holiday-banner"><div class="holiday-banner-icon">🏖️</div><div class="holiday-banner-title">${label}</div>${hol.memo ? `<div class="holiday-banner-memo">（${esc(hol.memo)}）</div>` : ''}</div>`;
+    return;
+  }
+  const students = gkMemberStudents();
+  if (!students.length) {
+    listEl.innerHTML = '<div class="empty"><div class="empty-icon">👥</div><p>受講者が設定されていません<br>「👥 受講者を設定」から選んでください</p></div>';
+    return;
+  }
+  const cnt = {};
+  let done = 0;
+  students.forEach(s => {
+    const r = _db.gkAtt.find(a => a.studentId === s.id && a.date === date);
+    if (r && r.status) { done++; cnt[r.status] = (cnt[r.status] || 0) + 1; }
+  });
+  sumEl.innerHTML = `記録 <span>${done} / ${students.length}名</span>　` + GK_STATUSES.filter(x => cnt[x]).map(x => `${x} ${cnt[x]}`).join('・');
+
+  const sorted = [...students.filter(s => !_db.gkAtt.some(a => a.studentId === s.id && a.date === date && a.status)),
+                  ...students.filter(s =>  _db.gkAtt.some(a => a.studentId === s.id && a.date === date && a.status))];
+  listEl.innerHTML = sorted.map(s => {
+    const rec = _db.gkAtt.find(a => a.studentId === s.id && a.date === date);
+    const cur = rec ? rec.status : null;
+    const mine = _db.gkAtt.filter(a => a.studentId === s.id && a.status);
+    const tot = GK_STATUSES.map(x => [x, mine.filter(a => a.status === x).length]).filter(([, n]) => n).map(([x, n]) => `${x}${n}`).join(' ');
+    const btns = GK_STATUSES.map(st => `<button class="status-btn ${cur === st ? 'active' : ''}" data-s="${st}" onclick="recordGk('${s.id}','${date}','${st}')">${st}</button>`).join('');
+    return `
+      <div class="attendance-row ${cur ? '' : 'att-unrecorded'}">
+        <div class="att-name-wrap">
+          <div class="att-name">${esc(s.name)}</div>
+          ${tot ? `<div style="font-size:.72rem;color:var(--muted);">これまで：${tot}</div>` : ''}
+          <input type="text" class="quiz-memo-input" maxlength="200" style="margin-top:6px;" value="${esc(rec?.memo || '')}"
+                 placeholder="📝 備考（欠席理由・様子など）" onblur="saveGkMemo('${s.id}','${date}',this.value)" />
+        </div>
+        <div class="status-buttons">${btns}</div>
+      </div>`;
+  }).join('');
+}
+
+async function recordGk(studentId, date, status) {
+  const rec = _db.gkAtt.find(a => a.studentId === studentId && a.date === date);
+  let error;
+  if (rec) {
+    const next = rec.status === status ? null : status;
+    if (!next && !rec.memo) {
+      ({ error } = await _supabase.from('goukaku_attendance').delete().eq('id', rec.id));
+      if (!error) _db.gkAtt = _db.gkAtt.filter(a => a.id !== rec.id);
+    } else {
+      ({ error } = await _supabase.from('goukaku_attendance').update({ status: next }).eq('id', rec.id));
+      if (!error) rec.status = next;
+    }
+  } else {
+    const row = { id: uid(), studentId, date, status, memo: '' };
+    ({ error } = await _supabase.from('goukaku_attendance').insert({ id: row.id, student_id: studentId, date, status, memo: null }));
+    if (!error) _db.gkAtt.push(row);
+  }
+  if (error) { toast('⚠️ 保存できませんでした（SQLの適用はお済みですか？）'); return; }
+  renderGoukaku();
+}
+
+async function saveGkMemo(studentId, date, rawVal) {
+  const memo = rawVal.trim();
+  const rec = _db.gkAtt.find(a => a.studentId === studentId && a.date === date);
+  if ((rec?.memo || '') === memo) return;
+  let error;
+  if (rec) {
+    if (!memo && !rec.status) {
+      ({ error } = await _supabase.from('goukaku_attendance').delete().eq('id', rec.id));
+      if (!error) _db.gkAtt = _db.gkAtt.filter(a => a.id !== rec.id);
+    } else {
+      ({ error } = await _supabase.from('goukaku_attendance').update({ memo }).eq('id', rec.id));
+      if (!error) rec.memo = memo;
+    }
+  } else {
+    const row = { id: uid(), studentId, date, status: null, memo };
+    ({ error } = await _supabase.from('goukaku_attendance').insert({ id: row.id, student_id: studentId, date, status: null, memo }));
+    if (!error) _db.gkAtt.push(row);
+  }
+  if (error) { toast('⚠️ 備考を保存できませんでした'); return; }
+  toast('📝 備考を保存しました');
+}
+
+// ── 受講者設定 ──
+function openGkMembers() { renderGkMembers(); document.getElementById('gk-members-modal').classList.add('open'); }
+function closeGkMembers() { document.getElementById('gk-members-modal').classList.remove('open'); renderGoukaku(); }
+function renderGkMembers() {
+  const ids = new Set(_db.gkMembers.map(m => m.studentId));
+  const list = getStudents().filter(s => s.grade === GK_GRADE).sort((a, b) => a.name.localeCompare(b.name, 'ja'));
+  document.getElementById('gk-member-list').innerHTML = list.length
+    ? list.map(s => `<label style="display:flex;align-items:center;gap:10px;padding:9px 4px;border-bottom:1px solid var(--border);font-weight:700;cursor:pointer;">
+        <input type="checkbox" ${ids.has(s.id) ? 'checked' : ''} onchange="toggleGkMember('${s.id}',this)" />${esc(s.name)}</label>`).join('')
+    : `<div class="empty"><p>${GK_GRADE}の生徒がいません</p></div>`;
+}
+async function toggleGkMember(studentId, el) {
+  const cur = _db.gkMembers.find(m => m.studentId === studentId);
+  let error;
+  if (el.checked && !cur) {
+    const row = { id: uid(), studentId };
+    ({ error } = await _supabase.from('goukaku_members').insert({ id: row.id, student_id: studentId }));
+    if (!error) _db.gkMembers.push(row);
+  } else if (!el.checked && cur) {
+    ({ error } = await _supabase.from('goukaku_members').delete().eq('id', cur.id));
+    if (!error) _db.gkMembers = _db.gkMembers.filter(m => m.id !== cur.id);
+  }
+  if (error) { el.checked = !el.checked; toast('⚠️ 保存できませんでした（SQLの適用はお済みですか？）'); }
+}
+
+// ── 合格講座だけの休講 ──
+function renderGkHolidayList() {
+  const el = document.getElementById('gk-hl-list');
+  if (!el) return;
+  const today = todayStr();
+  const list = _db.gkHolidays.filter(h => h.date >= today).sort((a, b) => a.date.localeCompare(b.date));
+  el.innerHTML = list.length ? list.map(h => `
+    <div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-top:1px solid var(--border);font-size:.85rem;">
+      <span style="flex:1;font-weight:700;">${esc(formatDateJP(h.date))}${h.memo ? `　<span style="font-weight:500;color:var(--muted);">${esc(h.memo)}</span>` : ''}</span>
+      <button class="btn btn-outline btn-sm" onclick="deleteGkHoliday('${h.id}')">削除</button>
+    </div>`).join('') : '<div style="font-size:.8rem;color:var(--muted);">今後の合格講座休講日はありません</div>';
+}
+async function addGkHoliday() {
+  const start = document.getElementById('gk-hl-start').value;
+  const end = document.getElementById('gk-hl-end').value || start;
+  const memo = document.getElementById('gk-hl-memo').value.trim();
+  if (!start) { toast('開始日を選択してください'); return; }
+  if (end < start) { toast('終了日は開始日と同じか、後の日にしてください'); return; }
+  const dates = dateRangeList(start, end).filter(d => !_db.gkHolidays.some(h => h.date === d));
+  if (!dates.length) { toast('その期間はすでに登録済みです'); return; }
+  const rows = dates.map(d => ({ id: uid(), date: d, memo: memo || null, campus: CURRENT_CAMPUS }));
+  const { error } = await _supabase.from('goukaku_holidays').insert(rows);
+  if (error) { toast('⚠️ 保存できませんでした（SQLの適用はお済みですか？）'); return; }
+  rows.forEach(r => _db.gkHolidays.push({ id: r.id, date: r.date, memo: r.memo || '', campus: r.campus }));
+  ['gk-hl-start','gk-hl-end','gk-hl-memo'].forEach(id => document.getElementById(id).value = '');
+  toast(`合格講座を${dates.length}日休講に登録しました`);
+  renderGoukaku();
+}
+async function deleteGkHoliday(id) {
+  const { error } = await _supabase.from('goukaku_holidays').delete().eq('id', id);
+  if (error) { toast('⚠️ 削除できませんでした'); return; }
+  _db.gkHolidays = _db.gkHolidays.filter(h => h.id !== id);
+  renderGoukaku();
+}
+
+// ════════════════════════════
 //  学校ワーク進捗（3周まで）
 // ════════════════════════════
 const WB_BASE = ['国語','数学','英語','理科','社会'];
@@ -4945,7 +5170,7 @@ function hideLoading() {
 //  Supabase データロード
 // ════════════════════════════
 async function loadAllData() {
-  const [s, a, m, t, hw, hl, qt, qs, sp, st, sc, cr, wb] = await Promise.all([
+  const [s, a, m, t, hw, hl, qt, qs, sp, st, sc, cr, wb, gm, ga, gh] = await Promise.all([
     _supabase.from('students').select('*').order('created_at'),
     _supabase.from('attendance').select('*'),
     _supabase.from('makeups').select('*'),
@@ -4958,7 +5183,10 @@ async function loadAllData() {
     _supabase.from('student_tests').select('*').order('date', { ascending: false }),
     _supabase.from('student_consultations').select('*').order('date', { ascending: false }),
     _supabase.from('campus_rules').select('*'),
-    _supabase.from('student_workbooks').select('*')
+    _supabase.from('student_workbooks').select('*'),
+    _supabase.from('goukaku_members').select('*'),
+    _supabase.from('goukaku_attendance').select('*'),
+    _supabase.from('goukaku_holidays').select('*').order('date')
   ]);
   _db.students    = (s.data || []).map(r => ({ id: r.id, name: r.name, grade: r.grade || '', days: r.days || [], campus: r.campus || '鶴瀬東' }));
   _db.attendance  = (a.data || []).map(r => ({ id: r.id, date: r.date, studentId: r.student_id, status: r.status, time: r.time || undefined, memo: r.memo || undefined }));
@@ -4973,6 +5201,9 @@ async function loadAllData() {
   _db.studentTests         = (st.data || []).map(r => ({ id: r.id, studentId: r.student_id, date: r.date, testName: r.test_name, subject: r.subject||'', score: r.score, maxScore: r.max_score, notes: r.notes||'' }));
   _db.studentConsultations = (sc.data || []).map(r => ({ id: r.id, studentId: r.student_id, date: r.date, memo: r.memo||'' }));
   _db.workbooks = (wb.data || []).map(r => ({ id: r.id, studentId: r.student_id, subject: r.subject, rounds: r.rounds || 0, updatedAt: r.updated_at || '' }));
+  _db.gkMembers  = (gm.data || []).map(r => ({ id: r.id, studentId: r.student_id }));
+  _db.gkAtt      = (ga.data || []).map(r => ({ id: r.id, studentId: r.student_id, date: r.date, status: r.status || null, memo: r.memo || '' }));
+  _db.gkHolidays = (gh.data || []).map(r => ({ id: r.id, date: r.date, memo: r.memo || '', campus: r.campus }));
   // 校舎ルール（全校舎ぶん保持。判定は isRuleEnabled で現在校舎ぶんだけ参照）
   _db.campusRules = (cr.data || []).map(r => ({ id: r.id, campus: r.campus, ruleKey: r.rule_key, enabled: r.enabled }));
 
@@ -4988,6 +5219,9 @@ async function loadAllData() {
   _db.studentTests         = _db.studentTests.filter(t => _campusIds.has(t.studentId));
   _db.studentConsultations = _db.studentConsultations.filter(c => _campusIds.has(c.studentId));
   _db.workbooks            = _db.workbooks.filter(w => _campusIds.has(w.studentId));
+  _db.gkMembers            = _db.gkMembers.filter(m => _campusIds.has(m.studentId));
+  _db.gkAtt                = _db.gkAtt.filter(a => _campusIds.has(a.studentId));
+  _db.gkHolidays           = _db.gkHolidays.filter(h => h.campus === CURRENT_CAMPUS);
   _db.quizTests            = _db.quizTests.filter(t => t.campus === CURRENT_CAMPUS);
   // 休講日は「この校舎」＋「共通（両校舎）」を表示対象にする
   _db.holidays             = _db.holidays.filter(h => h.campus === CURRENT_CAMPUS || h.campus === '共通');
@@ -5138,6 +5372,9 @@ document.getElementById('template-modal').addEventListener('click', function(e) 
 });
 document.getElementById('makeup-modal').addEventListener('click', function(e) {
   if (e.target === this) closeMakeupModal();
+});
+document.getElementById('gk-members-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeGkMembers();
 });
 document.getElementById('wb-bulk-modal').addEventListener('click', function(e) {
   if (e.target === this) closeWbBulk();
