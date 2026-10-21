@@ -3759,7 +3759,10 @@ function renderGoukaku() {
     const r = _db.gkAtt.find(a => a.studentId === s.id && a.date === date);
     if (r && r.status) { done++; cnt[r.status] = (cnt[r.status] || 0) + 1; }
   });
-  sumEl.innerHTML = `記録 <span>${done} / ${students.length}名</span>　` + GK_STATUSES.filter(x => cnt[x]).map(x => `${x} ${cnt[x]}`).join('・');
+  const hwDone = students.filter(s => _db.gkAtt.some(a => a.studentId === s.id && a.date === date && a.hwStatus === '完了')).length;
+  const hwForgot = students.filter(s => _db.gkAtt.some(a => a.studentId === s.id && a.date === date && a.hwStatus === '忘れ')).length;
+  sumEl.innerHTML = `記録 <span>${done} / ${students.length}名</span>　` + GK_STATUSES.filter(x => cnt[x]).map(x => `${x} ${cnt[x]}`).join('・')
+    + (hwDone || hwForgot ? `　｜　宿題 ✅${hwDone}名 📚忘れ${hwForgot}名` : '');
 
   const sorted = [...students.filter(s => !_db.gkAtt.some(a => a.studentId === s.id && a.date === date && a.status)),
                   ...students.filter(s =>  _db.gkAtt.some(a => a.studentId === s.id && a.date === date && a.status))];
@@ -3767,13 +3770,19 @@ function renderGoukaku() {
     const rec = _db.gkAtt.find(a => a.studentId === s.id && a.date === date);
     const cur = rec ? rec.status : null;
     const mine = _db.gkAtt.filter(a => a.studentId === s.id && a.status);
-    const tot = GK_STATUSES.map(x => [x, mine.filter(a => a.status === x).length]).filter(([, n]) => n).map(([x, n]) => `${x}${n}`).join(' ');
+    const hwForgotN = _db.gkAtt.filter(a => a.studentId === s.id && a.hwStatus === '忘れ').length;
+    const tot = GK_STATUSES.map(x => [x, mine.filter(a => a.status === x).length]).filter(([, n]) => n).map(([x, n]) => `${x}${n}`).join(' ')
+              + (hwForgotN ? ` ／ 宿題忘れ${hwForgotN}` : '');
+    const hw = rec?.hwStatus || null;
+    const hwBtns = [['完了','✅ 完了','hw-done'],['忘れ','📚 忘れ','hw-forgotten']].map(([v, label, cls]) =>
+      `<button class="hw-btn ${cls}${hw === v ? ' active' : ''}" onclick="recordGkHw('${s.id}','${date}','${v}')">${label}</button>`).join('');
     const btns = GK_STATUSES.map(st => `<button class="status-btn ${cur === st ? 'active' : ''}" data-s="${st}" onclick="recordGk('${s.id}','${date}','${st}')">${st}</button>`).join('');
     return `
       <div class="attendance-row ${cur ? '' : 'att-unrecorded'}">
         <div class="att-name-wrap">
           <div class="att-name">${esc(s.name)}</div>
           ${tot ? `<div style="font-size:.72rem;color:var(--muted);">これまで：${tot}</div>` : ''}
+          <div style="display:flex;align-items:center;gap:6px;margin-top:6px;"><span style="font-size:.74rem;font-weight:800;color:var(--muted);">宿題</span>${hwBtns}</div>
           <input type="text" class="quiz-memo-input" maxlength="200" style="margin-top:6px;" value="${esc(rec?.memo || '')}"
                  placeholder="📝 備考（欠席理由・様子など）" onblur="saveGkMemo('${s.id}','${date}',this.value)" />
         </div>
@@ -3782,47 +3791,43 @@ function renderGoukaku() {
   }).join('');
 }
 
-async function recordGk(studentId, date, status) {
+// 1生徒×1日の記録を更新（出欠・備考・宿題のどれか）。中身が全部空になったら行ごと消す
+async function gkUpdate(studentId, date, patch) {
   const rec = _db.gkAtt.find(a => a.studentId === studentId && a.date === date);
+  const merged = { status: null, memo: '', hwStatus: null, ...(rec || {}), ...patch };
+  const empty = !merged.status && !merged.memo && !merged.hwStatus;
+  const cols = { status: merged.status, memo: merged.memo || null, hw_status: merged.hwStatus };
   let error;
-  if (rec) {
-    const next = rec.status === status ? null : status;
-    if (!next && !rec.memo) {
-      ({ error } = await _supabase.from('goukaku_attendance').delete().eq('id', rec.id));
-      if (!error) _db.gkAtt = _db.gkAtt.filter(a => a.id !== rec.id);
-    } else {
-      ({ error } = await _supabase.from('goukaku_attendance').update({ status: next }).eq('id', rec.id));
-      if (!error) rec.status = next;
-    }
-  } else {
-    const row = { id: uid(), studentId, date, status, memo: '' };
-    ({ error } = await _supabase.from('goukaku_attendance').insert({ id: row.id, student_id: studentId, date, status, memo: null }));
+  if (rec && empty) {
+    ({ error } = await _supabase.from('goukaku_attendance').delete().eq('id', rec.id));
+    if (!error) _db.gkAtt = _db.gkAtt.filter(a => a.id !== rec.id);
+  } else if (rec) {
+    ({ error } = await _supabase.from('goukaku_attendance').update(cols).eq('id', rec.id));
+    if (!error) Object.assign(rec, { status: merged.status, memo: merged.memo, hwStatus: merged.hwStatus });
+  } else if (!empty) {
+    const row = { id: uid(), studentId, date, status: merged.status, memo: merged.memo, hwStatus: merged.hwStatus };
+    ({ error } = await _supabase.from('goukaku_attendance').insert({ id: row.id, student_id: studentId, date, ...cols }));
     if (!error) _db.gkAtt.push(row);
   }
-  if (error) { toast('⚠️ 保存できませんでした（SQLの適用はお済みですか？）'); return; }
-  renderGoukaku();
+  if (error) toast('⚠️ 保存できませんでした（SQLの適用はお済みですか？）');
+  return !error;
+}
+
+async function recordGk(studentId, date, status) {
+  const rec = _db.gkAtt.find(a => a.studentId === studentId && a.date === date);
+  if (await gkUpdate(studentId, date, { status: rec?.status === status ? null : status })) renderGoukaku();
+}
+
+async function recordGkHw(studentId, date, hw) {
+  const rec = _db.gkAtt.find(a => a.studentId === studentId && a.date === date);
+  if (await gkUpdate(studentId, date, { hwStatus: rec?.hwStatus === hw ? null : hw })) renderGoukaku();
 }
 
 async function saveGkMemo(studentId, date, rawVal) {
   const memo = rawVal.trim();
   const rec = _db.gkAtt.find(a => a.studentId === studentId && a.date === date);
   if ((rec?.memo || '') === memo) return;
-  let error;
-  if (rec) {
-    if (!memo && !rec.status) {
-      ({ error } = await _supabase.from('goukaku_attendance').delete().eq('id', rec.id));
-      if (!error) _db.gkAtt = _db.gkAtt.filter(a => a.id !== rec.id);
-    } else {
-      ({ error } = await _supabase.from('goukaku_attendance').update({ memo }).eq('id', rec.id));
-      if (!error) rec.memo = memo;
-    }
-  } else {
-    const row = { id: uid(), studentId, date, status: null, memo };
-    ({ error } = await _supabase.from('goukaku_attendance').insert({ id: row.id, student_id: studentId, date, status: null, memo }));
-    if (!error) _db.gkAtt.push(row);
-  }
-  if (error) { toast('⚠️ 備考を保存できませんでした'); return; }
-  toast('📝 備考を保存しました');
+  if (await gkUpdate(studentId, date, { memo })) toast('📝 備考を保存しました');
 }
 
 // ── 受講者設定 ──
@@ -5202,7 +5207,7 @@ async function loadAllData() {
   _db.studentConsultations = (sc.data || []).map(r => ({ id: r.id, studentId: r.student_id, date: r.date, memo: r.memo||'' }));
   _db.workbooks = (wb.data || []).map(r => ({ id: r.id, studentId: r.student_id, subject: r.subject, rounds: r.rounds || 0, updatedAt: r.updated_at || '' }));
   _db.gkMembers  = (gm.data || []).map(r => ({ id: r.id, studentId: r.student_id }));
-  _db.gkAtt      = (ga.data || []).map(r => ({ id: r.id, studentId: r.student_id, date: r.date, status: r.status || null, memo: r.memo || '' }));
+  _db.gkAtt      = (ga.data || []).map(r => ({ id: r.id, studentId: r.student_id, date: r.date, status: r.status || null, memo: r.memo || '', hwStatus: r.hw_status || null }));
   _db.gkHolidays = (gh.data || []).map(r => ({ id: r.id, date: r.date, memo: r.memo || '', campus: r.campus }));
   // 校舎ルール（全校舎ぶん保持。判定は isRuleEnabled で現在校舎ぶんだけ参照）
   _db.campusRules = (cr.data || []).map(r => ({ id: r.id, campus: r.campus, ruleKey: r.rule_key, enabled: r.enabled }));
