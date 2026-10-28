@@ -1035,6 +1035,13 @@
     .wb-r3 { background: #d1fae5; border-color: #6ee7b7; color: #065f46; }
     .wb-none { border-style: dashed; background: transparent; opacity: .55; font-weight: 600; }
     #gk-hl-box.hidden { display: none; }
+    .date-step { padding: 8px 10px; flex-shrink: 0; }
+    .name-link { cursor: pointer; text-decoration: underline dotted; text-underline-offset: 3px; }
+    .name-link:hover { color: var(--primary); }
+    .todo-item { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px; border: 1.5px solid var(--border); margin-bottom: 8px; cursor: pointer; background: #fff; font-size: .88rem; font-weight: 700; }
+    .todo-item:hover { border-color: var(--primary); }
+    .todo-item .todo-arrow { margin-left: auto; color: var(--muted); }
+    .todo-warn { border-color: #fca5a5; background: #fef2f2; }
     .quiz-card-highlight { box-shadow: 0 0 0 3px #f87171; transition: box-shadow .3s; }
 
     /* ── 休講日バナー ── */
@@ -1197,7 +1204,8 @@
     /* ── レスポンシブ ── */
     @media (max-width: 560px) {
       .header h1 { font-size: 1.05rem; }
-      .tab-btn  { font-size: .78rem; padding: 12px 6px; min-width: 72px; }
+      .tabs     { display: grid; grid-template-columns: repeat(4, 1fr); overflow-x: visible; }
+      .tab-btn  { font-size: .76rem; padding: 10px 2px; min-width: 0; }
       .status-btn { padding: 9px 10px; font-size: .78rem; min-width: 50px; }
     }
   </style>
@@ -1268,6 +1276,11 @@
       </div>
     </div>
 
+    <div class="card" id="today-todo-card" style="display:none;">
+      <div class="card-title">✅ 今日のやること</div>
+      <div id="today-todo"></div>
+    </div>
+
     <div class="card" id="today-card">
       <div style="margin-bottom:10px;">
         <select id="today-grade-filter" class="grade-select" onchange="renderToday()" style="width:100%">
@@ -1300,7 +1313,11 @@
       <div class="date-row">
         <div class="form-group">
           <label>日付</label>
-          <input type="date" id="gk-date" onchange="renderGoukaku()" />
+          <div style="display:flex;gap:4px;align-items:center;">
+            <button class="btn btn-outline btn-sm date-step" onclick="shiftDate('gk-date',-1,renderGoukaku)" title="前の日">◀</button>
+            <input type="date" id="gk-date" onchange="renderGoukaku()" style="flex:1;" />
+            <button class="btn btn-outline btn-sm date-step" onclick="shiftDate('gk-date',1,renderGoukaku)" title="次の日">▶</button>
+          </div>
         </div>
         <button class="btn btn-outline today-btn" onclick="gkToday()">今日</button>
         <div class="day-chip" id="gk-day">---</div>
@@ -1417,7 +1434,11 @@
       <div class="date-row">
         <div class="form-group">
           <label>日付</label>
-          <input type="date" id="att-date" onchange="renderAtt()" />
+          <div style="display:flex;gap:4px;align-items:center;">
+            <button class="btn btn-outline btn-sm date-step" onclick="shiftDate('att-date',-1,renderAtt)" title="前の日">◀</button>
+            <input type="date" id="att-date" onchange="renderAtt()" style="flex:1;" />
+            <button class="btn btn-outline btn-sm date-step" onclick="shiftDate('att-date',1,renderAtt)" title="次の日">▶</button>
+          </div>
         </div>
         <button class="btn btn-outline today-btn" onclick="setToday()">今日</button>
         <div class="day-chip" id="att-day">---</div>
@@ -1487,7 +1508,11 @@
       <div class="date-row">
         <div class="form-group">
           <label>日付</label>
-          <input type="date" id="quiz-date" onchange="renderQuiz()" />
+          <div style="display:flex;gap:4px;align-items:center;">
+            <button class="btn btn-outline btn-sm date-step" onclick="shiftDate('quiz-date',-1,renderQuiz)" title="前の日">◀</button>
+            <input type="date" id="quiz-date" onchange="renderQuiz()" style="flex:1;" />
+            <button class="btn btn-outline btn-sm date-step" onclick="shiftDate('quiz-date',1,renderQuiz)" title="次の日">▶</button>
+          </div>
         </div>
         <button class="btn btn-outline today-btn" onclick="setQuizToday()">今日</button>
         <div class="day-chip" id="quiz-day">---</div>
@@ -1515,7 +1540,11 @@
       <div class="date-row">
         <div class="form-group">
           <label>日付</label>
-          <input type="date" id="hw-date" onchange="renderHomework()" />
+          <div style="display:flex;gap:4px;align-items:center;">
+            <button class="btn btn-outline btn-sm date-step" onclick="shiftDate('hw-date',-1,renderHomework)" title="前の日">◀</button>
+            <input type="date" id="hw-date" onchange="renderHomework()" style="flex:1;" />
+            <button class="btn btn-outline btn-sm date-step" onclick="shiftDate('hw-date',1,renderHomework)" title="次の日">▶</button>
+          </div>
         </div>
         <button class="btn btn-outline today-btn" onclick="setHomeworkToday()">今日</button>
         <div class="day-chip" id="hw-day">---</div>
@@ -1665,7 +1694,7 @@
     <div class="card-title">📂 データを復元しますか？</div>
     <p style="margin-bottom:12px;font-size:.95rem;line-height:1.6;">
       バックアップファイルから以下のデータを読み込みます。<br>
-      <strong>現在のデータはすべて上書きされます。</strong>
+      <strong>今のデータは削除されません。</strong>同じ記録はバックアップの内容に戻り、消えてしまった記録は追加されます。
     </p>
     <div style="background:#f0f4f8;border-radius:8px;padding:14px;margin-bottom:8px;font-size:.9rem;">
       <div id="restore-preview">—</div>
@@ -1955,7 +1984,18 @@ const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2);
 // ════════════════════════════
 //  ユーティリティ
 // ════════════════════════════
-const todayStr = () => new Date().toISOString().slice(0, 10);
+// 端末のローカル時刻（日本時間）で YYYY-MM-DD にする（toISOString は UTC なので朝9時まで前日になってしまう）
+const ymd = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+const todayStr = () => ymd(new Date());
+
+// 日付入力を前後に1日ずらして再描画（空なら今日から）
+function shiftDate(inputId, delta, renderFn) {
+  const el = document.getElementById(inputId);
+  const d = new Date((el.value || todayStr()) + 'T00:00:00');
+  d.setDate(d.getDate() + delta);
+  el.value = ymd(d);
+  renderFn();
+}
 
 function dayIdx(dateStr) {
   // 0=月 … 6=日
@@ -1996,20 +2036,36 @@ function updateBackupInfo() {
   }
 }
 
-function backupData() {
-  const data = {
-    version: 3,
-    exportedAt: new Date().toISOString(),
-    students:   getStudents(),
-    attendance: getAttendance(),
-    makeups:    getMakeups(),
-    templates:  getTemplates()
-  };
+// バックアップ対象（親テーブルが先。復元もこの順で入れる）
+const BACKUP_TABLES = [
+  ['students', null], ['attendance', 'student_id'], ['makeups', 'student_id'], ['homework', 'student_id'],
+  ['quiz_tests', null], ['quiz_scores', 'student_id'], ['student_profiles', 'student_id'], ['student_tests', 'student_id'],
+  ['student_consultations', 'student_id'], ['student_workbooks', 'student_id'], ['goukaku_members', 'student_id'],
+  ['goukaku_attendance', 'student_id'], ['goukaku_holidays', null], ['holidays', null], ['settings', null], ['campus_rules', null]
+];
+
+async function backupData() {
+  showLoading('バックアップを作成中...');
+  const tables = {};
+  try {
+    const res = await Promise.all(BACKUP_TABLES.map(([t]) => _supabase.from(t).select('*')));
+    const ids = new Set();
+    BACKUP_TABLES.forEach(([t, fk], i) => {
+      let rows = res[i].data || [];
+      if (t === 'students') { rows = rows.filter(r => (r.campus || '鶴瀬東') === CURRENT_CAMPUS); rows.forEach(r => ids.add(r.id)); }
+      else if (fk) rows = rows.filter(r => ids.has(r[fk]));
+      else if (t === 'quiz_tests' || t === 'goukaku_holidays') rows = rows.filter(r => (r.campus || '鶴瀬東') === CURRENT_CAMPUS);
+      else if (t === 'holidays') rows = rows.filter(r => r.campus === CURRENT_CAMPUS || r.campus === '共通');
+      tables[t] = rows;
+    });
+  } catch (e) { hideLoading(); toast('⚠️ バックアップに失敗しました'); return; }
+  hideLoading();
+  const data = { version: 4, campus: CURRENT_CAMPUS, exportedAt: new Date().toISOString(), tables };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const url  = URL.createObjectURL(blob);
   const a    = document.createElement('a');
   a.href     = url;
-  a.download = `塾出席バックアップ_${todayStr()}.json`;
+  a.download = `塾バックアップ_${CURRENT_CAMPUS}_${todayStr()}.json`;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
@@ -2017,6 +2073,15 @@ function backupData() {
   localStorage.setItem(LBK, new Date().toISOString());
   updateBackupInfo();
   toast('💾 バックアップを保存しました');
+}
+
+// 旧形式（version 3：生徒・出席・振替だけ）のバックアップを新形式に変換
+function legacyBackupToTables(data) {
+  return {
+    students:   data.students.map(s => ({ id: s.id, name: s.name, grade: s.grade || '', days: s.days || [], campus: s.campus || CURRENT_CAMPUS })),
+    attendance: data.attendance.map(a => ({ id: a.id, student_id: a.studentId, date: a.date, status: a.status, time: a.time || null, memo: a.memo || null })),
+    makeups:    (data.makeups || []).map(m => ({ id: m.id, student_id: m.studentId, original_date: m.originalDate, makeup_date: m.makeupDate || null, memo: m.memo || null, done: m.done || false }))
+  };
 }
 
 function triggerRestore() {
@@ -2030,13 +2095,15 @@ function handleRestoreFile(event) {
   reader.onload = function(e) {
     try {
       const data = JSON.parse(e.target.result);
-      if (!Array.isArray(data.students) || !Array.isArray(data.attendance)) {
-        toast('⚠️ ファイルの形式が正しくありません');
-        return;
-      }
-      window._pendingRestore = data;
+      let tables;
+      if (data.tables && Array.isArray(data.tables.students)) tables = data.tables;
+      else if (Array.isArray(data.students) && Array.isArray(data.attendance)) tables = legacyBackupToTables(data);
+      else { toast('⚠️ ファイルの形式が正しくありません'); return; }
+      window._pendingRestore = { tables, campus: data.campus || '' };
       document.getElementById('restore-preview').innerHTML =
-        `<strong>生徒: ${data.students.length}人</strong> ／ 出席記録: ${data.attendance.length}件`;
+        `<strong>生徒: ${tables.students.length}人</strong> ／ 出席記録: ${(tables.attendance || []).length}件`
+        + (data.campus ? `（${esc(data.campus)}校舎のバックアップ）` : '')
+        + '<br><span style="font-size:.8rem;">今あるデータは消さずに、バックアップの内容で上書き・追加します。</span>';
       const expAt = data.exportedAt
         ? new Date(data.exportedAt).toLocaleString('ja-JP') : '不明';
       document.getElementById('restore-exported-at').textContent = expAt;
@@ -2054,34 +2121,32 @@ function closeRestoreModal() {
   document.getElementById('restore-modal').classList.remove('open');
 }
 
+// 復元：今あるデータは一切削除せず、バックアップの行を上書き・追加（upsert）するだけ
 async function confirmRestore() {
-  const data = window._pendingRestore;
-  if (!data) return;
+  const pending = window._pendingRestore;
+  if (!pending) return;
   showLoading('データを復元中...');
-  await _supabase.from('makeups').delete().neq('id', '');
-  await _supabase.from('attendance').delete().neq('id', '');
-  await _supabase.from('students').delete().neq('id', '');
-  if (data.students.length) {
-    await _supabase.from('students').insert(data.students.map(s => ({ id: s.id, name: s.name, grade: s.grade || '', days: s.days || [] })));
+  const failed = [];
+  for (const [t] of BACKUP_TABLES) {
+    const rows = pending.tables[t];
+    if (!Array.isArray(rows) || !rows.length) continue;
+    for (let i = 0; i < rows.length; i += 500) {
+      const { error } = await _supabase.from(t).upsert(rows.slice(i, i + 500));
+      if (error) { failed.push(t); break; }
+    }
   }
-  if (data.attendance.length) {
-    await _supabase.from('attendance').insert(data.attendance.map(a => ({ id: a.id, student_id: a.studentId, date: a.date, status: a.status, time: a.time || null, memo: a.memo || null })));
-  }
-  if (Array.isArray(data.makeups) && data.makeups.length) {
-    await _supabase.from('makeups').insert(data.makeups.map(m => ({ id: m.id, student_id: m.studentId, original_date: m.originalDate, makeup_date: m.makeupDate || null, memo: m.memo || null, done: m.done || false })));
-  }
-  if (data.templates) await saveTemplatesData(data.templates);
   await loadAllData();
   hideLoading();
   closeRestoreModal();
-  renderStudents(); renderAtt(); renderReport(); updateBackupInfo();
-  toast('✅ データを復元しました');
+  renderStudents(); renderAtt(); renderReport(); renderToday(); updateBackupInfo();
+  toast(failed.length ? `⚠️ 一部復元できませんでした（${failed.join('、')}）` : '✅ データを復元しました');
 }
 
 // ════════════════════════════
 //  タブ切り替え
 // ════════════════════════════
 function switchTab(btn, name) {
+  try { localStorage.setItem('lastTab', name); } catch (e) {}
   document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
@@ -2423,7 +2488,7 @@ function renderFollowList() {
     return `
       <div class="follow-item">
         <div class="follow-name-row">
-          <span class="follow-name">${esc(s.name)}</span>
+          <span class="follow-name name-link" onclick="openKarte('${s.id}')">${esc(s.name)}</span>
           ${tags.join('')}
         </div>
         <div class="follow-stats">
@@ -2437,6 +2502,54 @@ function renderFollowList() {
 // ════════════════════════════
 //  今日タブ
 // ════════════════════════════
+// タブ名を指定して開く（今日のやること等から使用）
+function gotoTab(name) {
+  const btn = document.querySelector(`.tab-btn[onclick*="'${name}'"]`);
+  if (!btn) return;
+  if (name === 'goukaku')  document.getElementById('gk-date').value = todayStr();
+  if (name === 'homework') document.getElementById('hw-date').value = todayStr();
+  switchTab(btn, name);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// 不合格者がいる小テスト（全日付）の件数
+function countQuizFailTests() {
+  return _db.quizTests.filter(test => getQuizTargets(test, test.date).some(st => {
+    const sc = _db.quizScores.find(x => x.testId === test.id && x.studentId === st.id);
+    return sc && sc.score != null && sc.score < test.passScore;
+  })).length;
+}
+
+// 今日タブ「今日のやること」：他のタブの未対応をまとめて表示
+function renderTodayTodo(today, isHoliday) {
+  const card = document.getElementById('today-todo-card');
+  const el = document.getElementById('today-todo');
+  if (!card || !el) return;
+  const items = [];
+  const di = dayIdx(today);
+  // 合格講座
+  if (GK_DAYS.includes(di) && !gkHolidayOn(today)) {
+    const members = gkMemberStudents();
+    if (members.length) {
+      const un = members.filter(m => !_db.gkAtt.some(a => a.studentId === m.id && a.date === today && a.status)).length;
+      items.push({ tab: 'goukaku', warn: un > 0, text: un ? `🎯 合格講座の出欠　未記録 ${un}名` : `🎯 合格講座の出欠　全員記録済み` });
+    }
+  }
+  // 宿題
+  if (!isHoliday) {
+    const todays = getStudents().filter(s => s.days.includes(di));
+    if (todays.length) {
+      const un = todays.filter(s => !_db.homework.some(h => h.studentId === s.id && h.date === today && h.status)).length;
+      items.push({ tab: 'homework', warn: un > 0, text: un ? `📝 宿題チェック　未記録 ${un}名` : '📝 宿題チェック　全員記録済み' });
+    }
+  }
+  // 小テスト
+  const fails = countQuizFailTests();
+  if (fails) items.push({ tab: 'quiz', warn: true, text: `🧪 不合格者がいる小テスト　${fails}件` });
+  card.style.display = items.length ? '' : 'none';
+  el.innerHTML = items.map(i => `<div class="todo-item ${i.warn ? 'todo-warn' : ''}" onclick="gotoTab('${i.tab}')">${i.text}<span class="todo-arrow">開く ›</span></div>`).join('');
+}
+
 function renderToday() {
   const today = todayStr();
   const di    = dayIdx(today);
@@ -2447,6 +2560,7 @@ function renderToday() {
   const listEl = document.getElementById('today-list');
 
   const holiday = _db.holidays.find(h => h.date === today);
+  renderTodayTodo(today, !!holiday);
   if (holiday) {
     document.getElementById('today-progress-fill').style.width = '0%';
     document.getElementById('today-counter-text').textContent = '';
@@ -2548,7 +2662,7 @@ function buildAttRows(students, att, date, context) {
     return `
       <div class="attendance-row ${isUnrec ? 'att-unrecorded' : ''}">
         <div class="att-name-wrap">
-          <div class="att-name">${esc(s.name)} ${gradeTag} ${hwForgotBadge}</div>
+          <div class="att-name"><span class="name-link" onclick="openKarte('${s.id}')" title="カルテを開く">${esc(s.name)}</span> ${gradeTag} ${hwForgotBadge}</div>
           ${metaHtml}
         </div>
         <div class="status-buttons">${btns}</div>
@@ -2737,7 +2851,7 @@ function renderHomework() {
     return `
       <div class="homework-row${rowCls}">
         <div class="hw-name-wrap">
-          <div class="hw-name">${esc(s.name)}${gradeTag}</div>
+          <div class="hw-name"><span class="name-link" onclick="openKarte('${s.id}')" title="カルテを開く">${esc(s.name)}</span>${gradeTag}</div>
           <input type="text" class="hw-memo-input" placeholder="備考（任意）"
                  value="${esc(memo)}" maxlength="50"
                  onblur="saveHomeworkMemo('${s.id}','${date}',this.value)" />
@@ -3170,8 +3284,21 @@ function karteJukuRecordsHTML(s) {
   const quizRows = quizWithTest.slice(0,10).map(q => {
     const cls = q.score==null ? 'color:var(--muted)' : q.score>=q.test.passScore ? 'color:var(--present);font-weight:800' : 'color:var(--absent);font-weight:800';
     const lbl = q.score==null ? '未記録' : `${q.score}${q.test.maxScore?' / '+q.test.maxScore:''}`;
-    return `<tr><td style="white-space:nowrap;">${esc(q.test.date)}</td><td>${esc(q.test.title)}</td><td style="${cls}">${lbl}</td></tr>`;
+    return `<tr><td style="white-space:nowrap;">${esc(q.test.date)}</td><td>${esc(q.test.title)}</td><td style="${cls}">${lbl}</td><td>${q.memo ? esc(q.memo) : ''}</td></tr>`;
   }).join('');
+  // 合格講座（受講者のみ）
+  const isGk    = _db.gkMembers.some(m => m.studentId === sid);
+  const gkRecs  = _db.gkAtt.filter(a => a.studentId === sid).sort((a,b) => b.date.localeCompare(a.date));
+  const gkCnt   = st => gkRecs.filter(a => a.status === st).length;
+  const gkRows  = gkRecs.slice(0,10).map(a => {
+    const col = a.status==='出席'?'color:var(--present)':a.status==='欠席'?'color:var(--absent)':a.status==='遅刻'?'color:var(--late)':a.status==='早退'?'color:var(--early)':'color:var(--muted)';
+    const hw  = a.hwStatus === '完了' ? '✅' : a.hwStatus === '忘れ' ? '<span style="color:var(--absent);font-weight:800;">📚忘れ</span>' : '';
+    return `<tr><td style="white-space:nowrap;">${esc(a.date)}</td><td style="${col};font-weight:800;">${a.status ? esc(a.status) : '—'}</td><td>${hw}</td><td>${a.memo ? esc(a.memo) : ''}</td></tr>`;
+  }).join('');
+  // 学校ワーク
+  const wbs = _db.workbooks.filter(w => w.studentId === sid)
+    .sort((a,b) => wbSubjects().indexOf(a.subject) - wbSubjects().indexOf(b.subject));
+  const wbHtml = wbs.map(w => `<span class="wb-cell wb-r${w.rounds}" style="cursor:default;display:inline-block;margin:0 6px 6px 0;">${esc(w.subject)}<span class="wb-dots">${'●'.repeat(w.rounds)}${'○'.repeat(WB_MAX - w.rounds)}</span></span>`).join('');
   const mkRows = makeups.slice(0,5).map(m => {
     const done = m.done ? '<span style="color:var(--present);font-weight:800;">完了</span>' : '<span style="color:var(--muted);">未完了</span>';
     return `<tr><td style="white-space:nowrap;">${esc(m.originalDate)}</td><td>${m.makeupDate?esc(m.makeupDate):'—'}</td><td>${done}</td><td>${m.memo?esc(m.memo):''}</td></tr>`;
@@ -3193,7 +3320,14 @@ function karteJukuRecordsHTML(s) {
       : '<div style="color:var(--muted);font-size:.85rem;padding:4px 0;">出席記録なし</div>'}
     ${quizWithTest.length ? `
     <div style="font-size:.82rem;font-weight:800;color:var(--muted);margin:14px 0 6px;">小テストの結果</div>
-    <div style="overflow-x:auto;"><table class="karte-history-table"><thead><tr><th>日付</th><th>テスト名</th><th>点数</th></tr></thead><tbody>${quizRows}</tbody></table></div>` : ''}
+    <div style="overflow-x:auto;"><table class="karte-history-table"><thead><tr><th>日付</th><th>テスト名</th><th>点数</th><th>備考</th></tr></thead><tbody>${quizRows}</tbody></table></div>` : ''}
+    ${isGk || gkRecs.length ? `
+    <div style="font-size:.82rem;font-weight:800;color:var(--muted);margin:14px 0 6px;">🎯 合格講座（出席${gkCnt('出席')}・欠席${gkCnt('欠席')}・遅刻${gkCnt('遅刻')}・宿題忘れ${gkRecs.filter(a => a.hwStatus === '忘れ').length}）</div>
+    ${gkRecs.length ? `<div style="overflow-x:auto;"><table class="karte-history-table"><thead><tr><th>日付</th><th>出欠</th><th>宿題</th><th>備考</th></tr></thead><tbody>${gkRows}</tbody></table></div>`
+      : '<div style="color:var(--muted);font-size:.85rem;padding:4px 0;">まだ記録がありません</div>'}` : ''}
+    ${wbs.length ? `
+    <div style="font-size:.82rem;font-weight:800;color:var(--muted);margin:14px 0 6px;">📚 学校ワークの進捗</div>
+    <div>${wbHtml}</div>` : ''}
     ${makeups.length ? `
     <div style="font-size:.82rem;font-weight:800;color:var(--muted);margin:14px 0 6px;">振替履歴</div>
     <div style="overflow-x:auto;"><table class="karte-history-table"><thead><tr><th>欠席日</th><th>振替日</th><th>状態</th><th>メモ</th></tr></thead><tbody>${mkRows}</tbody></table></div>` : ''}
@@ -3321,8 +3455,7 @@ function prevWeekRange(dateStr) {
   const thisMonday = new Date(d); thisMonday.setDate(d.getDate() - dow);
   const lastMonday = new Date(thisMonday); lastMonday.setDate(thisMonday.getDate() - 7);
   const lastSunday = new Date(thisMonday); lastSunday.setDate(thisMonday.getDate() - 1);
-  const fmt = x => x.toISOString().slice(0, 10);
-  return { start: fmt(lastMonday), end: fmt(lastSunday) };
+  return { start: ymd(lastMonday), end: ymd(lastSunday) };
 }
 
 function hasPrevWeekForgot(studentId, refDate) {
@@ -3470,7 +3603,7 @@ function renderQuiz() {
       const gradeTag = s.grade ? `<span class="grade-tag">${esc(s.grade)}</span>` : '';
       return `
         <div class="quiz-score-row">
-          <div class="quiz-score-name">${esc(s.name)} ${gradeTag}</div>
+          <div class="quiz-score-name"><span class="name-link" onclick="openKarte('${s.id}')" title="カルテを開く">${esc(s.name)}</span> ${gradeTag}</div>
           <input type="number" class="quiz-score-input" min="0" max="${test.maxScore}"
                  value="${val}" placeholder="点数"
                  onblur="saveQuizScore('${test.id}','${s.id}',this.value,'${test.passScore}',this)" />
@@ -3780,7 +3913,7 @@ function renderGoukaku() {
     return `
       <div class="attendance-row ${cur ? '' : 'att-unrecorded'}">
         <div class="att-name-wrap">
-          <div class="att-name">${esc(s.name)}</div>
+          <div class="att-name"><span class="name-link" onclick="openKarte('${s.id}')" title="カルテを開く">${esc(s.name)}</span></div>
           ${tot ? `<div style="font-size:.72rem;color:var(--muted);">これまで：${tot}</div>` : ''}
           <div style="display:flex;align-items:center;gap:6px;margin-top:6px;"><span style="font-size:.74rem;font-weight:800;color:var(--muted);">宿題</span>${hwBtns}</div>
           <input type="text" class="quiz-memo-input" maxlength="200" style="margin-top:6px;" value="${esc(rec?.memo || '')}"
@@ -3944,7 +4077,7 @@ function renderWorkbook() {
       const label = w.rounds === 0 ? '未着手' : `${w.rounds}周済`;
       return `<td><button class="wb-cell wb-r${w.rounds}" onclick="wbCycle('${w.id}')"><span class="wb-dots">${dots}</span>${label}</button></td>`;
     }).join('');
-    return `<tr><td class="wb-name">${esc(s.name)}<small>${esc(s.grade || '')}${school ? '・' + esc(school) : ''}</small></td>${cells}</tr>`;
+    return `<tr><td class="wb-name"><span class="name-link" onclick="openKarte('${s.id}')" title="カルテを開く">${esc(s.name)}</span><small>${esc(s.grade || '')}${school ? '・' + esc(school) : ''}</small></td>${cells}</tr>`;
   }).join('');
   const prev = listEl.querySelector('.wb-wrap');
   const sl = prev ? prev.scrollLeft : 0;
@@ -5354,6 +5487,11 @@ async function continueInit() {
   renderFollowList();
   checkMigrationNeeded();
   checkPinOnLoad();
+  // 前回開いていたタブに戻す（再読み込み・校舎切替のあとも同じ画面のまま）
+  let last = null;
+  try { last = localStorage.getItem('lastTab'); } catch (e) {}
+  const lastBtn = last && document.querySelector(`.tab-btn[onclick*="'${last}'"]`);
+  if (lastBtn && last !== 'today') switchTab(lastBtn, last);
 }
 
 // モーダル背景クリックで閉じる
