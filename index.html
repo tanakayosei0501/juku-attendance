@@ -1988,7 +1988,7 @@ const GRADES  = ['小学1年生','小学2年生','小学3年生','小学4年生'
 // ════════════════════════════
 //  インメモリキャッシュ（Supabase から起動時にロード）
 // ════════════════════════════
-const _db = { students: [], attendance: [], makeups: [], templates: {}, homework: [], holidays: [], quizTests: [], quizScores: [], studentProfiles: [], studentTests: [], studentConsultations: [], campusRules: [], workbooks: [], gkMembers: [], gkAtt: [], gkHolidays: [] };
+const _db = { students: [], attendance: [], makeups: [], templates: {}, homework: [], holidays: [], quizTests: [], quizScores: [], studentProfiles: [], studentTests: [], studentConsultations: [], campusRules: [], workbooks: [], gkMembers: [], gkAtt: [], gkHolidays: [], ssAtt: [] };
 
 // ════════════════════════════
 //  データアクセス（キャッシュ読み書き）
@@ -2059,7 +2059,7 @@ const BACKUP_TABLES = [
   ['students', null], ['attendance', 'student_id'], ['makeups', 'student_id'], ['homework', 'student_id'],
   ['quiz_tests', null], ['quiz_scores', 'student_id'], ['student_profiles', 'student_id'], ['student_tests', 'student_id'],
   ['student_consultations', 'student_id'], ['student_workbooks', 'student_id'], ['goukaku_members', 'student_id'],
-  ['goukaku_attendance', 'student_id'], ['goukaku_holidays', null], ['holidays', null], ['settings', null], ['campus_rules', null]
+  ['goukaku_attendance', 'student_id'], ['selfstudy_attendance', 'student_id'], ['goukaku_holidays', null], ['holidays', null], ['settings', null], ['campus_rules', null]
 ];
 
 async function backupData() {
@@ -3559,21 +3559,90 @@ function renderHwForgotCard() {
   // ルールOFFの校舎ではカードを出さない
   if (!isRuleEnabled('homework_monday_selfstudy')) { el.style.display = 'none'; return; }
   const today    = todayStr();
-  const students = getPrevWeekForgotStudents(today);
+  const isMonday = dayIdx(today) === 0;
+  let students   = getPrevWeekForgotStudents(today);
+  if (isMonday) {
+    // 月曜は、すでに記録がある生徒も一覧に残す
+    const ids = new Set(students.map(s => s.id));
+    getStudents().filter(s => !ids.has(s.id) && _db.ssAtt.some(a => a.studentId === s.id && a.date === today && (a.status || a.memo)))
+      .forEach(s => students.push(s));
+    students.sort((x, y) => x.name.localeCompare(y.name, 'ja'));
+  }
   if (!students.length) { el.style.display = 'none'; return; }
   el.style.display = '';
+  const gradeTag = s => s.grade ? `<span class="grade-tag">${esc(s.grade)}</span>` : '';
+  if (!isMonday) {
+    el.innerHTML = `
+    <div class="card hw-forgot-card">
+      <div class="hw-forgot-card-title">📚 宿題忘れ自学 対象者（今週月曜）— ${students.length}名</div>
+      ${students.map(s => `<div class="hw-forgot-item">${esc(s.name)} ${gradeTag(s)}</div>`).join('')}
+      <p style="font-size:.76rem;color:var(--muted);margin-top:8px;">
+        ※ 先週（${prevWeekRange(today).start}〜${prevWeekRange(today).end}）に宿題「忘れ」の記録がある生徒です。
+        月曜日に、ここで自学の出欠を記録できます。
+      </p>
+    </div>`;
+    return;
+  }
+  const recOf = s => _db.ssAtt.find(a => a.studentId === s.id && a.date === today);
+  const done = students.filter(s => recOf(s)?.status).length;
+  const sorted = [...students.filter(s => !recOf(s)?.status), ...students.filter(s => recOf(s)?.status)];
   el.innerHTML = `
     <div class="card hw-forgot-card">
-      <div class="hw-forgot-card-title">📚 宿題忘れ自習 対象者（今週）— ${students.length}名</div>
-      ${students.map(s => {
-        const gradeTag = s.grade ? `<span class="grade-tag">${esc(s.grade)}</span>` : '';
-        return `<div class="hw-forgot-item">${esc(s.name)} ${gradeTag}</div>`;
+      <div class="hw-forgot-card-title">📚 宿題忘れ自学の出欠（今日・月曜）— 記録 ${done} / ${students.length}名</div>
+      ${sorted.map(s => {
+        const rec = recOf(s);
+        const cur = rec?.status || null;
+        const btns = SS_STATUSES.map(st => `<button class="status-btn ${cur === st ? 'active' : ''}" data-s="${st}" onclick="recordSs('${s.id}','${today}','${st}')">${st}</button>`).join('');
+        return `<div class="attendance-row gk-row ${cur ? '' : 'att-unrecorded'}">
+          <div class="att-name-wrap">
+            <div class="att-name"><span class="name-link" onclick="openKarte('${s.id}')" title="カルテを開く">${esc(s.name)}</span> ${gradeTag(s)}</div>
+            <input type="text" class="quiz-memo-input" maxlength="200" style="margin-top:6px;" value="${esc(rec?.memo || '')}"
+                   placeholder="📝 備考（様子など）" onblur="saveSsMemo('${s.id}','${today}',this.value)" />
+          </div>
+          <div class="status-buttons gk-status">${btns}</div>
+        </div>`;
       }).join('')}
       <p style="font-size:.76rem;color:var(--muted);margin-top:8px;">
         ※ 先週（${prevWeekRange(today).start}〜${prevWeekRange(today).end}）に宿題「忘れ」の記録がある生徒です。
-        出席記録で「宿題忘れ自習」として記録できます。
+        通常授業の出欠とは別に記録されます。
       </p>
     </div>`;
+}
+
+const SS_STATUSES = ['出席','欠席','遅刻','早退'];
+
+// 1生徒×1日の自学の記録を更新。中身が全部空になったら行ごと消す（合格講座の gkUpdate と同じ形）
+async function ssUpdate(studentId, date, patch) {
+  const rec = _db.ssAtt.find(a => a.studentId === studentId && a.date === date);
+  const merged = { status: null, memo: '', ...(rec || {}), ...patch };
+  const empty = !merged.status && !merged.memo;
+  const cols = { status: merged.status, memo: merged.memo || null };
+  let error;
+  if (rec && empty) {
+    ({ error } = await _supabase.from('selfstudy_attendance').delete().eq('id', rec.id));
+    if (!error) _db.ssAtt = _db.ssAtt.filter(a => a.id !== rec.id);
+  } else if (rec) {
+    ({ error } = await _supabase.from('selfstudy_attendance').update(cols).eq('id', rec.id));
+    if (!error) Object.assign(rec, { status: merged.status, memo: merged.memo });
+  } else if (!empty) {
+    const row = { id: uid(), studentId, date, status: merged.status, memo: merged.memo };
+    ({ error } = await _supabase.from('selfstudy_attendance').insert({ id: row.id, student_id: studentId, date, ...cols }));
+    if (!error) _db.ssAtt.push(row);
+  }
+  if (error) toast('⚠️ 保存できませんでした（SQLの適用はお済みですか？）');
+  return !error;
+}
+
+async function recordSs(studentId, date, status) {
+  const rec = _db.ssAtt.find(a => a.studentId === studentId && a.date === date);
+  if (await ssUpdate(studentId, date, { status: rec?.status === status ? null : status })) renderHwForgotCard();
+}
+
+async function saveSsMemo(studentId, date, rawVal) {
+  const memo = rawVal.trim();
+  const rec = _db.ssAtt.find(a => a.studentId === studentId && a.date === date);
+  if ((rec?.memo || '') === memo) return;
+  if (await ssUpdate(studentId, date, { memo })) toast('📝 備考を保存しました');
 }
 
 // ════════════════════════════
@@ -5390,7 +5459,7 @@ function hideLoading() {
 //  Supabase データロード
 // ════════════════════════════
 async function loadAllData() {
-  const [s, a, m, t, hw, hl, qt, qs, sp, st, sc, cr, wb, gm, ga, gh] = await Promise.all([
+  const [s, a, m, t, hw, hl, qt, qs, sp, st, sc, cr, wb, gm, ga, gh, ss] = await Promise.all([
     _supabase.from('students').select('*').order('created_at'),
     _supabase.from('attendance').select('*'),
     _supabase.from('makeups').select('*'),
@@ -5406,7 +5475,8 @@ async function loadAllData() {
     _supabase.from('student_workbooks').select('*'),
     _supabase.from('goukaku_members').select('*'),
     _supabase.from('goukaku_attendance').select('*'),
-    _supabase.from('goukaku_holidays').select('*').order('date')
+    _supabase.from('goukaku_holidays').select('*').order('date'),
+    _supabase.from('selfstudy_attendance').select('*')
   ]);
   _db.students    = (s.data || []).map(r => ({ id: r.id, name: r.name, grade: r.grade || '', days: r.days || [], campus: r.campus || '鶴瀬東' }));
   _db.attendance  = (a.data || []).map(r => ({ id: r.id, date: r.date, studentId: r.student_id, status: r.status, time: r.time || undefined, memo: r.memo || undefined }));
@@ -5423,6 +5493,7 @@ async function loadAllData() {
   _db.workbooks = (wb.data || []).map(r => ({ id: r.id, studentId: r.student_id, subject: r.subject, rounds: r.rounds || 0, updatedAt: r.updated_at || '' }));
   _db.gkMembers  = (gm.data || []).map(r => ({ id: r.id, studentId: r.student_id }));
   _db.gkAtt      = (ga.data || []).map(r => ({ id: r.id, studentId: r.student_id, date: r.date, status: r.status || null, memo: r.memo || '', hwStatus: r.hw_status || null }));
+  _db.ssAtt      = (ss.data || []).map(r => ({ id: r.id, studentId: r.student_id, date: r.date, status: r.status || null, memo: r.memo || '' }));
   _db.gkHolidays = (gh.data || []).map(r => ({ id: r.id, date: r.date, memo: r.memo || '', campus: r.campus }));
   // 校舎ルール（全校舎ぶん保持。判定は isRuleEnabled で現在校舎ぶんだけ参照）
   _db.campusRules = (cr.data || []).map(r => ({ id: r.id, campus: r.campus, ruleKey: r.rule_key, enabled: r.enabled }));
@@ -5431,6 +5502,7 @@ async function loadAllData() {
   // （データベース自体は全校舎ぶん保持したまま、表示だけを切り替える）
   _db.students = _db.students.filter(s => s.campus === CURRENT_CAMPUS);
   const _campusIds = new Set(_db.students.map(s => s.id));
+  _db.ssAtt                = _db.ssAtt.filter(a => _campusIds.has(a.studentId));
   _db.attendance           = _db.attendance.filter(a => _campusIds.has(a.studentId));
   _db.makeups              = _db.makeups.filter(m => _campusIds.has(m.studentId));
   _db.homework             = _db.homework.filter(h => _campusIds.has(h.studentId));
