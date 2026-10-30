@@ -1208,8 +1208,17 @@
     }
     .shake { animation: shake .4s ease; }
 
+    /* 合格講座の出欠行 */
+    .gk-sum-part { display: inline-block; margin-right: 12px; white-space: nowrap; }
+    .gk-hw-row { display: flex; align-items: center; gap: 6px; margin-top: 6px; }
+    .gk-hw-label { font-size: .74rem; font-weight: 800; color: var(--muted); flex-shrink: 0; }
+
     /* ── レスポンシブ ── */
     @media (max-width: 560px) {
+      .gk-row .att-name-wrap { flex: 1 1 100%; }
+      .gk-hw-row .hw-btn { flex: 1; padding: 9px 4px; }
+      .gk-row .gk-status { width: 100%; display: grid; grid-template-columns: repeat(4, 1fr); }
+      .gk-row .gk-status .status-btn { min-width: 0; padding: 10px 2px; }
       .header h1 { font-size: 1.05rem; }
       .tabs     { display: grid; grid-template-columns: repeat(4, 1fr); overflow-x: visible; }
       .tab-btn  { font-size: .76rem; padding: 10px 2px; min-width: 0; }
@@ -3956,8 +3965,9 @@ function renderGoukaku() {
   });
   const hwDone = students.filter(s => _db.gkAtt.some(a => a.studentId === s.id && a.date === date && a.hwStatus === '完了')).length;
   const hwForgot = students.filter(s => _db.gkAtt.some(a => a.studentId === s.id && a.date === date && a.hwStatus === '忘れ')).length;
-  sumEl.innerHTML = `記録 <span>${done} / ${students.length}名</span>　` + GK_STATUSES.filter(x => cnt[x]).map(x => `${x} ${cnt[x]}`).join('・')
-    + (hwDone || hwForgot ? `　｜　宿題 ✅${hwDone}名 📚忘れ${hwForgot}名` : '');
+  sumEl.innerHTML = `<span class="gk-sum-part">記録 <span>${done} / ${students.length}名</span></span>`
+    + (done ? `<span class="gk-sum-part">${GK_STATUSES.filter(x => cnt[x]).map(x => `${x} ${cnt[x]}`).join('・')}</span>` : '')
+    + (hwDone || hwForgot ? `<span class="gk-sum-part">宿題 ✅${hwDone}名 📚忘れ${hwForgot}名</span>` : '');
 
   const sorted = [...students.filter(s => !_db.gkAtt.some(a => a.studentId === s.id && a.date === date && a.status)),
                   ...students.filter(s =>  _db.gkAtt.some(a => a.studentId === s.id && a.date === date && a.status))];
@@ -3973,16 +3983,16 @@ function renderGoukaku() {
       `<button class="hw-btn ${cls}${hw === v ? ' active' : ''}" onclick="recordGkHw('${s.id}','${date}','${v}')">${label}</button>`).join('');
     const btns = GK_STATUSES.map(st => `<button class="status-btn ${cur === st ? 'active' : ''}" data-s="${st}" onclick="recordGk('${s.id}','${date}','${st}')">${st}</button>`).join('');
     return `
-      <div class="attendance-row ${cur ? '' : 'att-unrecorded'}">
+      <div class="attendance-row gk-row ${cur ? '' : 'att-unrecorded'}">
         <div class="att-name-wrap">
           <div class="att-name"><span class="name-link" onclick="openKarte('${s.id}')" title="カルテを開く">${esc(s.name)}</span></div>
           ${tot ? `<div style="font-size:.72rem;color:var(--muted);">これまで：${tot}</div>` : ''}
-          <div style="display:flex;align-items:center;gap:6px;margin-top:6px;"><span style="font-size:.74rem;font-weight:800;color:var(--muted);">宿題</span>${hwBtns}</div>
+          <div class="gk-hw-row"><span class="gk-hw-label">宿題</span>${hwBtns}</div>
           ${gkMakeupHtml(s.id, date, cur)}
           <input type="text" class="quiz-memo-input" maxlength="200" style="margin-top:6px;" value="${esc(rec?.memo || '')}"
                  placeholder="📝 備考（欠席理由・様子など）" onblur="saveGkMemo('${s.id}','${date}',this.value)" />
         </div>
-        <div class="status-buttons">${btns}</div>
+        <div class="status-buttons gk-status">${btns}</div>
       </div>`;
   }).join('');
 }
