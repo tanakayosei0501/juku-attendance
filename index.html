@@ -953,6 +953,11 @@
       white-space: nowrap;
     }
     .hw-forgot-card { background: #fffbeb; border: 2px solid #fbbf24; border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+    .mk-suggest-card { background: #eff6ff; border: 2px solid #93c5fd; border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+    .mk-suggest-title { font-size: .9rem; font-weight: 800; color: #1e40af; margin-bottom: 10px; }
+    .mk-suggest-item { padding: 8px 0; border-top: 1px solid #bfdbfe; }
+    .mk-suggest-item:first-of-type { border-top: none; }
+    .mk-suggest-chip { border: 1px solid #60a5fa; background: #fff; color: #1d4ed8; border-radius: 14px; padding: 4px 10px; font-size: .78rem; font-weight: 700; margin: 4px 6px 0 0; cursor: pointer; }
     .hw-forgot-card-title { font-size: .9rem; font-weight: 800; color: #92400e; margin-bottom: 10px; }
     .hw-forgot-item { padding: 6px 0; border-bottom: 1px solid #fde68a; font-size: .88rem; font-weight: 700; }
     .hw-forgot-item:last-child { border-bottom: none; }
@@ -1296,6 +1301,7 @@
     </div>
 
     <div id="hw-forgot-card" style="display:none"></div>
+    <div id="makeup-suggest-card" style="display:none"></div>
 
     <div class="card" id="follow-card">
       <div class="follow-card-header">
@@ -2297,6 +2303,7 @@ function formatDateJP(dateStr) {
 }
 
 function renderMakeupList() {
+  renderMakeupSuggestCard();
   const today   = todayStr();
   const makeups = getMakeups().filter(m => !m.done);
   const sMap    = Object.fromEntries(getStudents().map(s => [s.id, s.name]));
@@ -3480,6 +3487,44 @@ function getPrevWeekForgotStudents(refDate) {
 function isRuleEnabled(ruleKey, defaultVal = true) {
   const r = _db.campusRules.find(x => x.campus === CURRENT_CAMPUS && x.ruleKey === ruleKey);
   return r ? !!r.enabled : defaultVal;
+}
+
+// 先週の欠席で振替日が未定の生徒に、今後の通常曜日から振替日を提案
+function renderMakeupSuggestCard() {
+  const el = document.getElementById('makeup-suggest-card');
+  if (!el) return;
+  const today = todayStr();
+  const { start, end } = prevWeekRange(today);
+  const students = Object.fromEntries(getStudents().map(s => [s.id, s]));
+  const hits = getAttendance().filter(a => a.status === '欠席' && a.date >= start && a.date <= end && students[a.studentId]
+    && !getMakeups().some(m => m.studentId === a.studentId && m.originalDate === a.date && (m.done || m.makeupDate)));
+  if (!hits.length) { el.style.display = 'none'; return; }
+  hits.sort((a, b) => a.date.localeCompare(b.date));
+  el.style.display = '';
+  el.innerHTML = `
+    <div class="mk-suggest-card">
+      <div class="mk-suggest-title">📅 振替日の提案（先週の欠席）— ${hits.length}名</div>
+      ${hits.map(a => {
+        const s = students[a.studentId];
+        const cands = [];
+        const d = new Date(today + 'T00:00:00');
+        for (let i = 0; i < 14 && cands.length < 3; i++, d.setDate(d.getDate() + 1)) {
+          const ds = ymd(d);
+          if (s.days.includes(dayIdx(ds)) && !_db.holidays.some(h => h.date === ds)) cands.push(ds);
+        }
+        const chips = cands.map(ds => `<button class="mk-suggest-chip" onclick="pickMakeupSuggest('${s.id}','${a.date}','${ds}')">${formatDateJP(ds)}</button>`).join('');
+        return `<div class="mk-suggest-item">
+          <strong>${esc(s.name)}</strong> <span style="font-size:.8rem;color:var(--muted)">${formatDateJP(a.date)}に欠席</span>
+          <div>${chips || '<span style="font-size:.78rem;color:var(--muted)">候補日がありません</span>'}
+          <button class="btn-makeup" onclick="openMakeupModal('${s.id}','${a.date}','today')">別の日で登録</button></div>
+        </div>`;
+      }).join('')}
+      <p style="font-size:.76rem;color:var(--muted);margin-top:8px;">※ 日付を押すと、その日で振替登録の画面が開きます（通常の通塾曜日・休講日除く）。</p>
+    </div>`;
+}
+function pickMakeupSuggest(studentId, originalDate, makeupDate) {
+  openMakeupModal(studentId, originalDate, 'today');
+  document.getElementById('mk-date').value = makeupDate;
 }
 
 function renderHwForgotCard() {
