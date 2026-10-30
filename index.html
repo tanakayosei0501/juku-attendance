@@ -953,6 +953,8 @@
       white-space: nowrap;
     }
     .hw-forgot-card { background: #fffbeb; border: 2px solid #fbbf24; border-radius: 12px; padding: 16px; margin-bottom: 12px; }
+    .mk-kind { display: inline-block; font-size: .68rem; font-weight: 800; border-radius: 8px; padding: 1px 7px; margin-right: 6px; vertical-align: middle; background: #e0e7ff; color: #3730a3; }
+    .mk-kind-gk { background: #fef3c7; color: #92400e; }
     .mk-suggest-card { background: #eff6ff; border: 2px solid #93c5fd; border-radius: 12px; padding: 16px; margin-bottom: 12px; }
     .mk-suggest-title { font-size: .9rem; font-weight: 800; color: #1e40af; margin-bottom: 10px; }
     .mk-suggest-item { padding: 8px 0; border-top: 1px solid #bfdbfe; }
@@ -1651,7 +1653,7 @@
 <!-- ── 振替登録モーダル ── -->
 <div class="overlay" id="makeup-modal">
   <div class="modal" style="max-width:380px">
-    <div class="card-title">📅 振替授業を登録</div>
+    <div class="card-title" id="mk-title">📅 振替授業を登録</div>
     <div style="font-size:.85rem;color:var(--muted);margin-bottom:4px;">欠席日</div>
     <div style="font-weight:800;font-size:1rem;margin-bottom:4px;" id="mk-original-date-disp">---</div>
     <div style="font-weight:800;font-size:1rem;color:var(--primary);margin-bottom:16px;" id="mk-student-name-disp"></div>
@@ -1659,6 +1661,7 @@
     <input type="hidden" id="mk-original-date">
     <input type="hidden" id="mk-context">
     <input type="hidden" id="mk-id">
+    <input type="hidden" id="mk-kind">
     <div class="form-group">
       <label>振替日</label>
       <input type="date" id="mk-date" />
@@ -2302,6 +2305,9 @@ function formatDateJP(dateStr) {
   return `${d.getMonth()+1}月${d.getDate()}日（${DAYS[dayIdx(dateStr)]}）`;
 }
 
+const mkKindOf = m => m.kind || '授業';
+const mkKindBadge = k => `<span class="mk-kind${k === '合格講座' ? ' mk-kind-gk' : ''}">${k === '合格講座' ? '🎯 合格講座' : '📘 授業'}</span>`;
+
 function renderMakeupList() {
   renderMakeupSuggestCard();
   const today   = todayStr();
@@ -2330,7 +2336,7 @@ function renderMakeupList() {
     return `
       <div class="makeup-item${isToday ? ' today-hit' : ''}">
         <div class="makeup-info">
-          <div class="makeup-name">${esc(name)}${todayLabel}</div>
+          <div class="makeup-name">${mkKindBadge(mkKindOf(m))}${esc(name)}${todayLabel}</div>
           <div class="makeup-dates">
             振替日: <strong>${formatDateJP(m.makeupDate)}</strong>
             ／ 欠席日: ${formatDateJP(m.originalDate)}
@@ -2345,12 +2351,15 @@ function renderMakeupList() {
   }).join('');
 }
 
-function openMakeupModal(studentId, originalDate, context, existingId) {
+function openMakeupModal(studentId, originalDate, context, existingId, kind) {
   const student = getStudents().find(s => s.id === studentId);
   const makeups = getMakeups();
   const existing = existingId
     ? makeups.find(m => m.id === existingId)
-    : makeups.find(m => m.studentId === studentId && m.originalDate === originalDate && !m.done);
+    : makeups.find(m => m.studentId === studentId && m.originalDate === originalDate && mkKindOf(m) === (kind || '授業') && !m.done);
+  kind = existing ? mkKindOf(existing) : (kind || '授業');
+  document.getElementById('mk-kind').value = kind;
+  document.getElementById('mk-title').textContent = kind === '合格講座' ? '🎯 合格講座の振替を登録' : '📅 振替授業を登録';
 
   document.getElementById('mk-student-id').value    = studentId;
   document.getElementById('mk-original-date').value = originalDate;
@@ -2383,6 +2392,7 @@ async function saveMakeup() {
   const memo         = document.getElementById('mk-memo').value.trim() || null;
   const existingId   = document.getElementById('mk-id').value;
   const context      = document.getElementById('mk-context').value;
+  const kind         = document.getElementById('mk-kind').value || '授業';
 
   let error;
   if (existingId) {
@@ -2393,10 +2403,10 @@ async function saveMakeup() {
     }
   } else {
     const id = uid();
-    ({ error } = await _supabase.from('makeups').insert({ id, student_id: studentId, original_date: originalDate, makeup_date: makeupDate, memo, done: false }));
-    if (!error) _db.makeups.push({ id, studentId, originalDate, makeupDate: makeupDate || undefined, memo: memo || undefined, done: false });
+    ({ error } = await _supabase.from('makeups').insert({ id, student_id: studentId, original_date: originalDate, makeup_date: makeupDate, memo, done: false, ...(kind === '合格講座' ? { kind } : {}) }));
+    if (!error) _db.makeups.push({ id, studentId, originalDate, makeupDate: makeupDate || undefined, memo: memo || undefined, done: false, kind });
   }
-  if (error) { toast('⚠️ 保存できませんでした'); return; }
+  if (error) { toast(kind === '合格講座' ? '⚠️ 保存できませんでした（振替の種類のSQLは適用済みですか？）' : '⚠️ 保存できませんでした'); return; }
   closeMakeupModal();
   renderMakeupList();
   _refresh(context);
@@ -2641,7 +2651,7 @@ function buildAttRows(students, att, date, context) {
 
       // 振替ボタン（欠席のとき）
       if (rec.status === '欠席') {
-        const mk = getMakeups().find(m => m.studentId === s.id && m.originalDate === date && !m.done);
+        const mk = getMakeups().find(m => m.studentId === s.id && m.originalDate === date && mkKindOf(m) === '授業' && !m.done);
         if (mk) {
           metaHtml += `<div class="att-meta">
             <span class="att-meta-makeup">📅 振替: ${formatDateJP(mk.makeupDate)}</span>
@@ -2769,6 +2779,7 @@ function saveTimeMemo()  { _doSaveTimeMemo(true);  }
 function skipTimeMemo()  { _doSaveTimeMemo(false); }
 
 function _refresh(context) {
+  if (context === 'gk') { renderGoukaku(); renderMakeupList(); return; }
   if (context === 'today') renderToday();
   else renderAtt();
   if (document.getElementById('tab-homework')?.classList.contains('active')) renderHomework();
@@ -3308,7 +3319,7 @@ function karteJukuRecordsHTML(s) {
   const wbHtml = wbs.map(w => `<span class="wb-cell wb-r${w.rounds}" style="cursor:default;display:inline-block;margin:0 6px 6px 0;">${esc(w.subject)}<span class="wb-dots">${'●'.repeat(w.rounds)}${'○'.repeat(WB_MAX - w.rounds)}</span></span>`).join('');
   const mkRows = makeups.slice(0,5).map(m => {
     const done = m.done ? '<span style="color:var(--present);font-weight:800;">完了</span>' : '<span style="color:var(--muted);">未完了</span>';
-    return `<tr><td style="white-space:nowrap;">${esc(m.originalDate)}</td><td>${m.makeupDate?esc(m.makeupDate):'—'}</td><td>${done}</td><td>${m.memo?esc(m.memo):''}</td></tr>`;
+    return `<tr><td>${mkKindBadge(mkKindOf(m))}</td><td style="white-space:nowrap;">${esc(m.originalDate)}</td><td>${m.makeupDate?esc(m.makeupDate):'—'}</td><td>${done}</td><td>${m.memo?esc(m.memo):''}</td></tr>`;
   }).join('');
   return `
   <div class="karte-section">
@@ -3337,7 +3348,7 @@ function karteJukuRecordsHTML(s) {
     <div>${wbHtml}</div>` : ''}
     ${makeups.length ? `
     <div style="font-size:.82rem;font-weight:800;color:var(--muted);margin:14px 0 6px;">振替履歴</div>
-    <div style="overflow-x:auto;"><table class="karte-history-table"><thead><tr><th>欠席日</th><th>振替日</th><th>状態</th><th>メモ</th></tr></thead><tbody>${mkRows}</tbody></table></div>` : ''}
+    <div style="overflow-x:auto;"><table class="karte-history-table"><thead><tr><th>種類</th><th>欠席日</th><th>振替日</th><th>状態</th><th>メモ</th></tr></thead><tbody>${mkRows}</tbody></table></div>` : ''}
   </div>`;
 }
 
@@ -3496,34 +3507,40 @@ function renderMakeupSuggestCard() {
   const today = todayStr();
   const { start, end } = prevWeekRange(today);
   const students = Object.fromEntries(getStudents().map(s => [s.id, s]));
-  const hits = getAttendance().filter(a => a.status === '欠席' && a.date >= start && a.date <= end && students[a.studentId]
-    && !getMakeups().some(m => m.studentId === a.studentId && m.originalDate === a.date && (m.done || m.makeupDate)));
+  const hasMk = (a, kind) => getMakeups().some(m => m.studentId === a.studentId && m.originalDate === a.date && mkKindOf(m) === kind && (m.done || m.makeupDate));
+  const inWeek = a => a.status === '欠席' && a.date >= start && a.date <= end && students[a.studentId];
+  const hits = [
+    ...getAttendance().filter(a => inWeek(a) && !hasMk(a, '授業')).map(a => ({ ...a, kind: '授業' })),
+    ..._db.gkAtt.filter(a => inWeek(a) && !hasMk(a, '合格講座')).map(a => ({ ...a, kind: '合格講座' }))
+  ];
   if (!hits.length) { el.style.display = 'none'; return; }
   hits.sort((a, b) => a.date.localeCompare(b.date));
   el.style.display = '';
   el.innerHTML = `
     <div class="mk-suggest-card">
-      <div class="mk-suggest-title">📅 振替日の提案（先週の欠席）— ${hits.length}名</div>
+      <div class="mk-suggest-title">📅 振替日の提案（先週の欠席）— ${hits.length}件</div>
       ${hits.map(a => {
         const s = students[a.studentId];
+        const gk = a.kind === '合格講座';
         const cands = [];
         const d = new Date(today + 'T00:00:00');
         for (let i = 0; i < 14 && cands.length < 3; i++, d.setDate(d.getDate() + 1)) {
           const ds = ymd(d);
-          if (s.days.includes(dayIdx(ds)) && !_db.holidays.some(h => h.date === ds)) cands.push(ds);
+          const ok = gk ? GK_DAYS.includes(dayIdx(ds)) && !gkHolidayOn(ds) : s.days.includes(dayIdx(ds)) && !_db.holidays.some(h => h.date === ds);
+          if (ok) cands.push(ds);
         }
-        const chips = cands.map(ds => `<button class="mk-suggest-chip" onclick="pickMakeupSuggest('${s.id}','${a.date}','${ds}')">${formatDateJP(ds)}</button>`).join('');
+        const chips = cands.map(ds => `<button class="mk-suggest-chip" onclick="pickMakeupSuggest('${s.id}','${a.date}','${ds}','${a.kind}')">${formatDateJP(ds)}</button>`).join('');
         return `<div class="mk-suggest-item">
-          <strong>${esc(s.name)}</strong> <span style="font-size:.8rem;color:var(--muted)">${formatDateJP(a.date)}に欠席</span>
+          ${mkKindBadge(a.kind)}<strong>${esc(s.name)}</strong> <span style="font-size:.8rem;color:var(--muted)">${formatDateJP(a.date)}に欠席</span>
           <div>${chips || '<span style="font-size:.78rem;color:var(--muted)">候補日がありません</span>'}
-          <button class="btn-makeup" onclick="openMakeupModal('${s.id}','${a.date}','today')">別の日で登録</button></div>
+          <button class="btn-makeup" onclick="openMakeupModal('${s.id}','${a.date}','today',null,'${a.kind}')">別の日で登録</button></div>
         </div>`;
       }).join('')}
-      <p style="font-size:.76rem;color:var(--muted);margin-top:8px;">※ 日付を押すと、その日で振替登録の画面が開きます（通常の通塾曜日・休講日除く）。</p>
+      <p style="font-size:.76rem;color:var(--muted);margin-top:8px;">※ 日付を押すと、その日で振替登録の画面が開きます。授業は通常の通塾曜日、合格講座は火〜土（休講日除く）から候補を出しています。</p>
     </div>`;
 }
-function pickMakeupSuggest(studentId, originalDate, makeupDate) {
-  openMakeupModal(studentId, originalDate, 'today');
+function pickMakeupSuggest(studentId, originalDate, makeupDate, kind) {
+  openMakeupModal(studentId, originalDate, 'today', null, kind);
   document.getElementById('mk-date').value = makeupDate;
 }
 
@@ -3961,12 +3978,22 @@ function renderGoukaku() {
           <div class="att-name"><span class="name-link" onclick="openKarte('${s.id}')" title="カルテを開く">${esc(s.name)}</span></div>
           ${tot ? `<div style="font-size:.72rem;color:var(--muted);">これまで：${tot}</div>` : ''}
           <div style="display:flex;align-items:center;gap:6px;margin-top:6px;"><span style="font-size:.74rem;font-weight:800;color:var(--muted);">宿題</span>${hwBtns}</div>
+          ${gkMakeupHtml(s.id, date, cur)}
           <input type="text" class="quiz-memo-input" maxlength="200" style="margin-top:6px;" value="${esc(rec?.memo || '')}"
                  placeholder="📝 備考（欠席理由・様子など）" onblur="saveGkMemo('${s.id}','${date}',this.value)" />
         </div>
         <div class="status-buttons">${btns}</div>
       </div>`;
   }).join('');
+}
+
+// 合格講座を欠席した生徒の振替ボタン／登録済みの振替日
+function gkMakeupHtml(sid, date, status) {
+  if (status !== '欠席') return '';
+  const mk = getMakeups().find(m => m.studentId === sid && m.originalDate === date && mkKindOf(m) === '合格講座' && !m.done);
+  return mk
+    ? `<div class="att-meta"><span class="att-meta-makeup">🎯 合格講座の振替: ${formatDateJP(mk.makeupDate)}</span><button class="btn-memo" onclick="openMakeupModal('${sid}','${date}','gk',null,'合格講座')">変更</button></div>`
+    : `<div class="att-meta"><button class="btn-makeup" onclick="openMakeupModal('${sid}','${date}','gk',null,'合格講座')">🎯 合格講座の振替を登録</button></div>`;
 }
 
 // 1生徒×1日の記録を更新（出欠・備考・宿題のどれか）。中身が全部空になったら行ごと消す
@@ -5373,7 +5400,7 @@ async function loadAllData() {
   ]);
   _db.students    = (s.data || []).map(r => ({ id: r.id, name: r.name, grade: r.grade || '', days: r.days || [], campus: r.campus || '鶴瀬東' }));
   _db.attendance  = (a.data || []).map(r => ({ id: r.id, date: r.date, studentId: r.student_id, status: r.status, time: r.time || undefined, memo: r.memo || undefined }));
-  _db.makeups     = (m.data || []).map(r => ({ id: r.id, studentId: r.student_id, originalDate: r.original_date, makeupDate: r.makeup_date || undefined, memo: r.memo || undefined, done: r.done }));
+  _db.makeups     = (m.data || []).map(r => ({ id: r.id, studentId: r.student_id, originalDate: r.original_date, makeupDate: r.makeup_date || undefined, memo: r.memo || undefined, done: r.done, kind: r.kind || '授業' }));
   const tplRow    = (t.data || []).find(r => r.key === 'templates');
   _db.templates   = tplRow ? JSON.parse(tplRow.value) : {};
   _db.homework    = (hw.data || []).map(r => ({ id: r.id, studentId: r.student_id, date: r.date, status: r.status || null, memo: r.memo || undefined }));
