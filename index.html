@@ -738,6 +738,18 @@
       border: 1px solid #c5d5fc;
       white-space: nowrap;
     }
+    .smemo-chip {
+      display: inline-block; max-width: 280px; vertical-align: middle;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      font-size: .72rem; font-weight: 700; color: #7c2d12; background: #ffedd5; border: 1px solid #fdba74;
+      border-radius: 6px; padding: 1px 7px; cursor: pointer;
+    }
+    .smemo-chip.smemo-important { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
+    .smemo-item { padding: 10px 0; border-top: 1px solid var(--border); font-size: .88rem; word-break: break-word; }
+    .smemo-text { white-space: pre-wrap; }
+    .smemo-item:first-child { border-top: none; }
+    .smemo-date { font-size: .75rem; font-weight: 800; color: var(--muted); margin-bottom: 2px; }
+    @media (max-width: 560px) { .smemo-chip { max-width: 100%; } }
     .grade-tag {
       font-size: .72rem;
       color: var(--primary);
@@ -1687,6 +1699,18 @@
 </div>
 
 <!-- ── 時刻＆メモ モーダル ── -->
+<!-- ── 特記事項（朝礼・終礼メモ）モーダル ── -->
+<div class="overlay" id="smemo-modal" onclick="if(event.target===this)this.classList.remove('open')">
+  <div class="modal" style="max-width:460px">
+    <div class="card-title" id="smemo-title">📌 特記事項</div>
+    <div id="smemo-list" style="max-height:60vh;overflow-y:auto;"></div>
+    <p style="font-size:.74rem;color:var(--muted);margin-top:8px;">※ ポータルの朝礼・終礼メモ（直近60日）から、名前・ふりがなが書かれているものを自動で集めています。</p>
+    <div class="modal-foot">
+      <button class="btn btn-outline" onclick="document.getElementById('smemo-modal').classList.remove('open')">閉じる</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="timememo-modal">
   <div class="modal" style="max-width:380px">
     <div class="card-title" id="timememo-title">⏰ 遅刻の記録</div>
@@ -1988,7 +2012,7 @@ const GRADES  = ['小学1年生','小学2年生','小学3年生','小学4年生'
 // ════════════════════════════
 //  インメモリキャッシュ（Supabase から起動時にロード）
 // ════════════════════════════
-const _db = { students: [], attendance: [], makeups: [], templates: {}, homework: [], holidays: [], quizTests: [], quizScores: [], studentProfiles: [], studentTests: [], studentConsultations: [], campusRules: [], workbooks: [], gkMembers: [], gkAtt: [], gkHolidays: [], ssAtt: [] };
+const _db = { students: [], attendance: [], makeups: [], templates: {}, homework: [], holidays: [], quizTests: [], quizScores: [], studentProfiles: [], studentTests: [], studentConsultations: [], campusRules: [], workbooks: [], gkMembers: [], gkAtt: [], gkHolidays: [], ssAtt: [], staffMemos: [] };
 
 // ════════════════════════════
 //  データアクセス（キャッシュ読み書き）
@@ -2638,6 +2662,62 @@ function renderToday() {
   renderFollowList();
 }
 
+// ════════════════════════════
+//  特記事項（ポータルの朝礼・終礼メモから、その生徒に関係するものを拾う）
+// ════════════════════════════
+const STAFF_MEMO_DAYS = 60;
+let _staffMemoCache = null;
+
+const _noSpace = t => (t || '').replace(/[\s　]+/g, '');
+const _toHira  = t => (t || '').replace(/[ァ-ヶ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60));
+
+// 生徒ごとの「メモに書かれていそうな呼び方」：フルネーム（漢字・ふりがな）と下の名前（漢字・ふりがな）
+function staffMemoTerms(s) {
+  const prof  = _db.studentProfiles.find(p => p.studentId === s.id);
+  const kanji = (s.name || '').trim().split(/[\s　]+/);
+  const kana  = _toHira(prof?.furigana || '').trim().split(/[\s　]+/).filter(Boolean);
+  const full  = [_noSpace(s.name), kana.length ? kana.join('') : ''];
+  const given = [kanji.length > 1 ? kanji[kanji.length - 1] : '', kana.length > 1 ? kana[kana.length - 1] : ''];
+  return { full: full.filter(t => t.length >= 2), given: given.filter(t => t.length >= 2) };
+}
+
+// 生徒ID → 関係するメモ（新しい順）。下の名前が他の生徒とかぶるときは、フルネームでしか拾わない
+function staffMemoMap() {
+  if (_staffMemoCache) return _staffMemoCache;
+  const terms = getStudents().map(s => ({ id: s.id, ...staffMemoTerms(s) }));
+  const givenCount = {};
+  terms.forEach(t => new Set(t.given).forEach(g => { givenCount[g] = (givenCount[g] || 0) + 1; }));
+  const memos = _db.staffMemos.map(m => ({ ...m, flat: _toHira(_noSpace(m.content)) }));
+  _staffMemoCache = {};
+  terms.forEach(t => {
+    const words = [...t.full.map(_toHira), ...t.given.filter(g => givenCount[g] === 1).map(_toHira)];
+    if (!words.length) return;
+    const hits = memos.filter(m => words.some(w => m.flat.includes(w)));
+    if (hits.length) _staffMemoCache[t.id] = hits;
+  });
+  return _staffMemoCache;
+}
+
+function staffMemoChip(sid) {
+  const hits = staffMemoMap()[sid];
+  if (!hits) return '';
+  const imp = hits.some(m => m.important);
+  const latest = hits[0].content.replace(/\s+/g, ' ');
+  return `<span class="smemo-chip${imp ? ' smemo-important' : ''}" onclick="openStaffMemo('${sid}')" title="${esc(latest)}">📌 ${hits.length > 1 ? hits.length + '件 ' : ''}${esc(latest)}</span>`;
+}
+
+function openStaffMemo(sid) {
+  const s = getStudents().find(x => x.id === sid);
+  const hits = staffMemoMap()[sid] || [];
+  document.getElementById('smemo-title').textContent = `📌 ${s?.name || ''} の特記事項`;
+  document.getElementById('smemo-list').innerHTML = hits.map(m => `
+    <div class="smemo-item">
+      <div class="smemo-date">${formatDateJP(m.date)}${m.important ? '　<span style="color:var(--absent)">★重要</span>' : ''}</div>
+      <div class="smemo-text">${esc(m.content)}</div>
+    </div>`).join('');
+  document.getElementById('smemo-modal').classList.add('open');
+}
+
 function buildAttRows(students, att, date, context) {
   return students.map(s => {
     const rec     = att.find(a => a.date === date && a.studentId === s.id);
@@ -2688,7 +2768,7 @@ function buildAttRows(students, att, date, context) {
     return `
       <div class="attendance-row ${isUnrec ? 'att-unrecorded' : ''}">
         <div class="att-name-wrap">
-          <div class="att-name"><span class="name-link" onclick="openKarte('${s.id}')" title="カルテを開く">${esc(s.name)}</span> ${gradeTag} ${hwForgotBadge}</div>
+          <div class="att-name"><span class="name-link" onclick="openKarte('${s.id}')" title="カルテを開く">${esc(s.name)}</span> ${gradeTag} ${hwForgotBadge} ${staffMemoChip(s.id)}</div>
           ${metaHtml}
         </div>
         <div class="status-buttons">${btns}</div>
@@ -3142,6 +3222,7 @@ async function saveKarteBasic() {
   const idx = _db.studentProfiles.findIndex(p => p.studentId === sid);
   if (idx >= 0) Object.assign(_db.studentProfiles[idx], mapped);
   else _db.studentProfiles.push(mapped);
+  _staffMemoCache = null;
   _karteEditMode.basic = false;
   toast('基本情報を保存しました');
   renderKarte();
@@ -3220,6 +3301,7 @@ async function saveKarteLearning() {
   const idx = _db.studentProfiles.findIndex(p => p.studentId === sid);
   if (idx >= 0) Object.assign(_db.studentProfiles[idx], mapped);
   else _db.studentProfiles.push(mapped);
+  _staffMemoCache = null;
   _karteEditMode.learning = false;
   toast('学習・進路情報を保存しました');
   renderKarte();
@@ -3427,6 +3509,7 @@ async function saveKarteNotes() {
   const idx = _db.studentProfiles.findIndex(p => p.studentId === sid);
   if (idx >= 0) Object.assign(_db.studentProfiles[idx], mapped);
   else _db.studentProfiles.push(mapped);
+  _staffMemoCache = null;
   _karteEditMode.notes = false;
   toast('特記事項を保存しました');
   renderKarte();
@@ -3595,7 +3678,7 @@ function renderHwForgotCard() {
         const btns = SS_STATUSES.map(st => `<button class="status-btn ${cur === st ? 'active' : ''}" data-s="${st}" onclick="recordSs('${s.id}','${today}','${st}')">${st}</button>`).join('');
         return `<div class="attendance-row gk-row ${cur ? '' : 'att-unrecorded'}">
           <div class="att-name-wrap">
-            <div class="att-name"><span class="name-link" onclick="openKarte('${s.id}')" title="カルテを開く">${esc(s.name)}</span> ${gradeTag(s)}</div>
+            <div class="att-name"><span class="name-link" onclick="openKarte('${s.id}')" title="カルテを開く">${esc(s.name)}</span> ${gradeTag(s)} ${staffMemoChip(s.id)}</div>
             <input type="text" class="quiz-memo-input" maxlength="200" style="margin-top:6px;" value="${esc(rec?.memo || '')}"
                    placeholder="📝 備考（様子など）" onblur="saveSsMemo('${s.id}','${today}',this.value)" />
           </div>
@@ -4054,7 +4137,7 @@ function renderGoukaku() {
     return `
       <div class="attendance-row gk-row ${cur ? '' : 'att-unrecorded'}">
         <div class="att-name-wrap">
-          <div class="att-name"><span class="name-link" onclick="openKarte('${s.id}')" title="カルテを開く">${esc(s.name)}</span></div>
+          <div class="att-name"><span class="name-link" onclick="openKarte('${s.id}')" title="カルテを開く">${esc(s.name)}</span> ${staffMemoChip(s.id)}</div>
           ${tot ? `<div style="font-size:.72rem;color:var(--muted);">これまで：${tot}</div>` : ''}
           <div class="gk-hw-row"><span class="gk-hw-label">宿題</span>${hwBtns}</div>
           ${gkMakeupHtml(s.id, date, cur)}
@@ -4699,6 +4782,7 @@ async function addStudent() {
   const grade = document.getElementById('s-grade').value;
   const id    = uid();
   const { error } = await _supabase.from('students').insert({ id, name, grade: grade || '', days, campus: CURRENT_CAMPUS });
+  _staffMemoCache = null;
   if (error) { toast('⚠️ 保存できませんでした'); return; }
   _db.students.push({ id, name, grade, days, campus: CURRENT_CAMPUS });
   document.getElementById('s-name').value = '';
@@ -4712,6 +4796,7 @@ async function deleteStudent(id) {
   const s = getStudents().find(x => x.id === id);
   if (!s || !confirm(`「${s.name}」を削除しますか？\n出席記録も一緒に削除されます。`)) return;
   const { error } = await _supabase.from('students').delete().eq('id', id);
+  _staffMemoCache = null;
   if (error) { toast('⚠️ 削除できませんでした'); return; }
   _db.students   = _db.students.filter(x => x.id !== id);
   _db.attendance = _db.attendance.filter(a => a.studentId !== id);
@@ -4742,6 +4827,7 @@ async function saveEdit() {
   if (!days.length) { toast('曜日を1つ以上選んでください'); return; }
   const grade = document.getElementById('e-grade').value;
   const { error } = await _supabase.from('students').update({ name, grade: grade || '', days }).eq('id', id);
+  _staffMemoCache = null;
   if (error) { toast('⚠️ 保存できませんでした'); return; }
   const idx = _db.students.findIndex(s => s.id === id);
   if (idx >= 0) { _db.students[idx].name = name; _db.students[idx].grade = grade; _db.students[idx].days = days; }
@@ -5459,7 +5545,7 @@ function hideLoading() {
 //  Supabase データロード
 // ════════════════════════════
 async function loadAllData() {
-  const [s, a, m, t, hw, hl, qt, qs, sp, st, sc, cr, wb, gm, ga, gh, ss] = await Promise.all([
+  const [s, a, m, t, hw, hl, qt, qs, sp, st, sc, cr, wb, gm, ga, gh, ss, sm] = await Promise.all([
     _supabase.from('students').select('*').order('created_at'),
     _supabase.from('attendance').select('*'),
     _supabase.from('makeups').select('*'),
@@ -5476,7 +5562,10 @@ async function loadAllData() {
     _supabase.from('goukaku_members').select('*'),
     _supabase.from('goukaku_attendance').select('*'),
     _supabase.from('goukaku_holidays').select('*').order('date'),
-    _supabase.from('selfstudy_attendance').select('*')
+    _supabase.from('selfstudy_attendance').select('*'),
+    // ポータル（ダッシュボード）の朝礼・終礼メモ。直近の分だけ
+    _supabase.from('memo_entries').select('id,memo_date,content,is_important')
+      .gte('memo_date', ymd(new Date(Date.now() - STAFF_MEMO_DAYS * 86400000))).order('memo_date', { ascending: false })
   ]);
   _db.students    = (s.data || []).map(r => ({ id: r.id, name: r.name, grade: r.grade || '', days: r.days || [], campus: r.campus || '鶴瀬東' }));
   _db.attendance  = (a.data || []).map(r => ({ id: r.id, date: r.date, studentId: r.student_id, status: r.status, time: r.time || undefined, memo: r.memo || undefined }));
@@ -5494,6 +5583,8 @@ async function loadAllData() {
   _db.gkMembers  = (gm.data || []).map(r => ({ id: r.id, studentId: r.student_id }));
   _db.gkAtt      = (ga.data || []).map(r => ({ id: r.id, studentId: r.student_id, date: r.date, status: r.status || null, memo: r.memo || '', hwStatus: r.hw_status || null }));
   _db.ssAtt      = (ss.data || []).map(r => ({ id: r.id, studentId: r.student_id, date: r.date, status: r.status || null, memo: r.memo || '' }));
+  _db.staffMemos = (sm.data || []).map(r => ({ id: r.id, date: r.memo_date, content: r.content || '', important: !!r.is_important }));
+  _staffMemoCache = null;
   _db.gkHolidays = (gh.data || []).map(r => ({ id: r.id, date: r.date, memo: r.memo || '', campus: r.campus }));
   // 校舎ルール（全校舎ぶん保持。判定は isRuleEnabled で現在校舎ぶんだけ参照）
   _db.campusRules = (cr.data || []).map(r => ({ id: r.id, campus: r.campus, ruleKey: r.rule_key, enabled: r.enabled }));

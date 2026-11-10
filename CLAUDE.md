@@ -72,6 +72,8 @@ Supabase 接続情報は `index.html` 内に定数で直書き（`SUPABASE_URL` 
 `campus_rules`（id, campus, rule_key, enabled）/
 `settings`（key, value）※連絡文テンプレを保存。
 
+※ `memo_entries`（id, memo_date, content, is_important）はポータル（juku-dashboard）の朝礼・終礼メモ。同じ Supabase プロジェクトを共有しており、このアプリは**読むだけ**。直近60日分を読み、名前（漢字）とカルテの「ふりがな」で照合して、出欠画面の名前の右に「📌 特記事項」として出す（`staffMemoMap()`）。校舎の列はないので、現在校舎の生徒との照合で絞っている。
+
 **RLS**: 全テーブル共通で `CREATE POLICY "authenticated_only" ON <table> FOR ALL TO authenticated USING (true) WITH CHECK (true);`。新テーブルを作る時も同じRLSを付けること。
 
 ※ campus 関連のスキーマ変更（`students.campus`, `quiz_tests.campus`, `holidays.campus`, `campus_rules` テーブル）は Supabase SQL Editor で直接適用済み。リポジトリの `supabase_*.sql` に未コミットの可能性があるので、スキーマ定義を残すなら追記を検討。
